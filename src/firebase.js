@@ -1,5 +1,4 @@
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -14,12 +13,20 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
+let app = null;
+let auth = null;
+let db = null;
 
-// Export services
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+try {
+  if (!firebaseConfig.apiKey) {
+    console.warn("Firebase VITE_FIREBASE_API_KEY is not defined. Please add your Firebase configuration to Vercel Environment Variables.");
+  }
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (err) {
+  console.error("Firebase failed to initialize:", err);
+}
 
+export { auth, db };
 export default app;
