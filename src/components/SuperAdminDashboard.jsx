@@ -1306,6 +1306,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         answer: newFaqForm.answer.trim(),
         category: newFaqForm.category || 'general',
         createdAt: new Date().toISOString(),
+        clicks: 0
       });
       setNewFaqForm({ question: '', answer: '', category: 'general' });
       setIsFaqFormOpen(false);
@@ -3611,81 +3612,18 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                       </div>
                     </div>
                     <button
-                      onClick={() => setIsFaqFormOpen(v => !v)}
+                      onClick={() => {
+                        setIsFaqFormOpen(true);
+                        setTimeout(() => {
+                          document.getElementById('chatbot-faqs-section')?.scrollIntoView({ behavior: 'smooth' });
+                        }, 100);
+                      }}
                       className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-orange-200 active:scale-95"
                     >
                       <Plus className="w-4 h-4" />
                       Add FAQ
                     </button>
                   </div>
-
-                  {/* Add FAQ Form */}
-                  <AnimatePresence>
-                    {isFaqFormOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-6 space-y-4">
-                          <h3 className="text-sm font-black text-gray-800">New FAQ Entry</h3>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="md:col-span-1">
-                              <label className="block text-xs font-bold text-gray-500 mb-1.5">Category</label>
-                              <select
-                                value={newFaqForm.category}
-                                onChange={e => setNewFaqForm(p => ({ ...p, category: e.target.value }))}
-                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 outline-none focus:border-orange-400 transition-all"
-                              >
-                                <option value="general">General</option>
-                                <option value="courses">Courses</option>
-                                <option value="prices">Prices</option>
-                                <option value="refunds">Refunds</option>
-                                <option value="access">Access</option>
-                                <option value="technical">Technical</option>
-                              </select>
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="block text-xs font-bold text-gray-500 mb-1.5">Question</label>
-                              <input
-                                type="text"
-                                placeholder="What is the question?"
-                                value={newFaqForm.question}
-                                onChange={e => setNewFaqForm(p => ({ ...p, question: e.target.value }))}
-                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 placeholder:text-gray-300 outline-none focus:border-orange-400 transition-all"
-                              />
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-500 mb-1.5">Answer</label>
-                            <textarea
-                              rows={3}
-                              placeholder="Type the answer here..."
-                              value={newFaqForm.answer}
-                              onChange={e => setNewFaqForm(p => ({ ...p, answer: e.target.value }))}
-                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 placeholder:text-gray-300 outline-none focus:border-orange-400 transition-all resize-none"
-                            />
-                          </div>
-                          <div className="flex gap-3 justify-end">
-                            <button
-                              onClick={() => { setIsFaqFormOpen(false); setNewFaqForm({ question: '', answer: '', category: 'general' }); }}
-                              className="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={handleAddFaq}
-                              disabled={!newFaqForm.question.trim() || !newFaqForm.answer.trim()}
-                              className="px-5 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md shadow-orange-100"
-                            >
-                              Save FAQ
-                            </button>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
 
                   {/* ── Support Queries ────────────────────── */}
                   <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-8">
@@ -3968,12 +3906,87 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   </div>
 
                   {/* ── FAQs ────────────────────────────────── */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-4 px-1">
+                  <div id="chatbot-faqs-section" className="space-y-4">
+                    <div className="flex items-center gap-2 px-1">
                       <div className="w-1 h-4 bg-indigo-500 rounded-full" />
                       <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Chatbot FAQs</h3>
-                      <span className="ml-auto text-xs text-gray-400 font-semibold">{supportFaqs.length} entries</span>
+                      <span className="text-xs text-gray-400 font-semibold">({supportFaqs.length} entries)</span>
+                      <button
+                        onClick={() => setIsFaqFormOpen(v => !v)}
+                        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-black transition-all shadow-sm active:scale-95 border border-indigo-100/40"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add FAQ Question
+                      </button>
                     </div>
+
+                    {/* Add FAQ Form */}
+                    <AnimatePresence>
+                      {isFaqFormOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-6 space-y-4">
+                            <h3 className="text-sm font-black text-gray-800">New FAQ Entry</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="md:col-span-1">
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Category</label>
+                                <select
+                                  value={newFaqForm.category}
+                                  onChange={e => setNewFaqForm(p => ({ ...p, category: e.target.value }))}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 outline-none focus:border-indigo-400 transition-all"
+                                >
+                                  <option value="general">General</option>
+                                  <option value="courses">Courses</option>
+                                  <option value="prices">Prices</option>
+                                  <option value="refunds">Refunds</option>
+                                  <option value="access">Access</option>
+                                  <option value="technical">Technical</option>
+                                </select>
+                              </div>
+                              <div className="md:col-span-2">
+                                <label className="block text-xs font-bold text-gray-500 mb-1.5">Question</label>
+                                <input
+                                  type="text"
+                                  placeholder="What is the question?"
+                                  value={newFaqForm.question}
+                                  onChange={e => setNewFaqForm(p => ({ ...p, question: e.target.value }))}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 placeholder:text-gray-300 outline-none focus:border-indigo-400 transition-all"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-gray-500 mb-1.5">Answer</label>
+                              <textarea
+                                rows={3}
+                                placeholder="Type the answer here..."
+                                value={newFaqForm.answer}
+                                onChange={e => setNewFaqForm(p => ({ ...p, answer: e.target.value }))}
+                                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-800 placeholder:text-gray-300 outline-none focus:border-indigo-400 transition-all resize-none"
+                              />
+                            </div>
+                            <div className="flex gap-3 justify-end">
+                              <button
+                                onClick={() => { setIsFaqFormOpen(false); setNewFaqForm({ question: '', answer: '', category: 'general' }); }}
+                                className="px-4 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100 transition-all"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleAddFaq}
+                                disabled={!newFaqForm.question.trim() || !newFaqForm.answer.trim()}
+                                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md shadow-indigo-100"
+                              >
+                                Save FAQ
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {supportFaqs.length === 0 ? (
                       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
@@ -3983,26 +3996,32 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                       </div>
                     ) : (
                       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden divide-y divide-gray-50">
-                        {supportFaqs.map(faq => (
-                          <div key={faq.id} className="p-5 flex items-start gap-4 hover:bg-gray-50/50 transition-colors group">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-500 text-[10px] font-black rounded-md uppercase">
-                                  {faq.category || 'general'}
-                                </span>
+                        {[...supportFaqs].sort((a, b) => (b.clicks || 0) - (a.clicks || 0)).map(faq => {
+                          const clicks = faq.clicks || 0;
+                          return (
+                            <div key={faq.id} className="p-5 flex items-start gap-4 hover:bg-gray-50/50 transition-colors group">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="inline-block px-2 py-0.5 bg-indigo-50 text-indigo-500 text-[10px] font-black rounded-md uppercase">
+                                    {faq.category || 'general'}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-black rounded-md">
+                                    🔥 {clicks} {clicks === 1 ? 'view' : 'views'}
+                                  </span>
+                                </div>
+                                <p className="text-sm font-bold text-gray-800 break-words">{faq.question}</p>
+                                <p className="text-xs font-medium text-gray-500 mt-1 break-words">{faq.answer}</p>
                               </div>
-                              <p className="text-sm font-bold text-gray-800 break-words">{faq.question}</p>
-                              <p className="text-xs font-medium text-gray-500 mt-1 break-words">{faq.answer}</p>
+                              <button
+                                onClick={() => handleDeleteFaq(faq.id)}
+                                className="flex-shrink-0 w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+                                title="Delete FAQ"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
-                            <button
-                              onClick={() => handleDeleteFaq(faq.id)}
-                              className="flex-shrink-0 w-8 h-8 rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
-                              title="Delete FAQ"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>

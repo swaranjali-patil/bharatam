@@ -83,20 +83,20 @@ export default function StudentChatbot({ user }) {
   
   const chatEndRef = useRef(null);
 
-  // Fetch real FAQs from Firestore if they exist
+  // Subscribe to real FAQs from Firestore with real-time updates
   useEffect(() => {
-    const fetchFaqs = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, "bharatam_faqs"));
-        if (!querySnapshot.empty) {
-          const list = querySnapshot.docs.map(d => d.data());
-          setFaqs(list);
-        }
-      } catch (err) {
-        console.warn("Failed to fetch FAQs, using defaults:", err);
+    const unsubscribe = onSnapshot(collection(db, "bharatam_faqs"), (snapshot) => {
+      if (!snapshot.empty) {
+        const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setFaqs(list);
+      } else {
+        setFaqs(DEFAULT_FAQS);
       }
-    };
-    fetchFaqs();
+    }, (err) => {
+      console.warn("Failed to subscribe to FAQs, using defaults:", err);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Fetch courses from Firestore for recommender engine
@@ -196,7 +196,14 @@ export default function StudentChatbot({ user }) {
           if (m.id === 1) {
             return {
               ...m,
-              options: ["📝 1-Minute Challenge", "🔍 Course Recommender", "👤 My Account Hub", "🎫 Track My Queries", ...faqs.map(f => f.question), "Talk to a Human"]
+              options: Array.from(new Set([
+                "📝 1-Minute Challenge",
+                "🔍 Course Recommender",
+                "👤 My Account Hub",
+                "🎫 Track My Queries",
+                ...faqs.map(f => f.question),
+                "Talk to a Human"
+              ]))
             };
           }
           return m;
@@ -557,7 +564,13 @@ export default function StudentChatbot({ user }) {
     if (option === "Back to Main Menu" || option === "Ask Another Question") {
       replyWithTyping(
         "How else can I assist you today?",
-        ["🔍 Course Recommender", "👤 My Account Hub", "🎫 Track My Queries", ...faqs.map(f => f.question), "Talk to a Human"]
+        Array.from(new Set([
+          "🔍 Course Recommender",
+          "👤 My Account Hub",
+          "🎫 Track My Queries",
+          ...faqs.map(f => f.question),
+          "Talk to a Human"
+        ]))
       );
       return;
     }
@@ -566,6 +579,15 @@ export default function StudentChatbot({ user }) {
     const faq = faqs.find(f => f.question === option);
     if (faq) {
       replyWithTyping(faq.answer, ["Ask Another Question", "Talk to a Human"]);
+      if (faq.id) {
+        try {
+          updateDoc(doc(db, "bharatam_faqs", faq.id), {
+            clicks: (faq.clicks || 0) + 1
+          }).catch(err => console.warn("Failed to increment FAQ click:", err));
+        } catch (err) {
+          console.warn("Failed to increment FAQ click:", err);
+        }
+      }
     } else {
       replyWithTyping(
         "I couldn't find an exact match for your question in my knowledge base. Would you like to submit a query to a support agent?",
@@ -665,6 +687,15 @@ export default function StudentChatbot({ user }) {
 
     if (matchedFaq && maxOverlap > 0) {
       replyWithTyping(matchedFaq.answer, ["Ask Another Question", "Talk to a Human"]);
+      if (matchedFaq.id) {
+        try {
+          updateDoc(doc(db, "bharatam_faqs", matchedFaq.id), {
+            clicks: (matchedFaq.clicks || 0) + 1
+          }).catch(err => console.warn("Failed to increment FAQ click:", err));
+        } catch (err) {
+          console.warn("Failed to increment FAQ click:", err);
+        }
+      }
     } else {
       // Check if user is asking about courses
       if (words.includes("course") || words.includes("learn") || words.includes("study") || words.includes("class")) {
