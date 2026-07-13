@@ -150,6 +150,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [approveCommissionInput, setApproveCommissionInput] = useState('');
   const [useCustomCommission, setUseCustomCommission] = useState(false);
 
+  // Date Filter States for Transactions
+  const [txStartDate, setTxStartDate] = useState('');
+  const [txEndDate, setTxEndDate] = useState('');
+
   // Backup & Restore States
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
@@ -737,7 +741,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             d = new Date(val);
           }
         }
-        return !d || isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN');
+        return !d || isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
       };
 
       const formatPhone = (phone) => {
@@ -750,7 +754,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
       // Report Header Title
       csvContent += "BHARTAM E-LEARNING — TRAINER HISTORY & AUDIT REPORT\n";
-      csvContent += `Generated On,${new Date().toLocaleDateString('en-IN')} ${new Date().toLocaleTimeString('en-IN')}\n\n`;
+      csvContent += `Generated On,${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ${new Date().toLocaleTimeString('en-IN')}\n\n`;
 
       // ── Trainer Profile & Financial Overview in Key-Value format (Columns A & B) ──
       csvContent += "=== TRAINER OVERVIEW ===,\n";
@@ -1170,6 +1174,55 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     } catch (err) {
       console.error("Failed to generate PDF report:", err);
       alert("Failed to generate PDF: " + err.message);
+    }
+  };
+
+  const handleExportFilteredTransactions = (filteredList) => {
+    try {
+      let csvContent = "\uFEFF"; // UTF-8 BOM
+
+      // Header Row
+      csvContent += "=== PLATFORM TRANSACTION REGISTRY ===\n";
+      csvContent += `Date Filter Range,${txStartDate || 'Any Start'} to ${txEndDate || 'Any End'}\n`;
+      csvContent += `Export Date,${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ${new Date().toLocaleTimeString('en-IN')}\n\n`;
+
+      csvContent += "Transaction ID,Date,Course Name,Student Name,Student Email,Gross Price (INR)\n";
+
+      if (filteredList.length === 0) {
+        csvContent += "No transactions matching selected date range found,\n";
+      } else {
+        filteredList.forEach(p => {
+          const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
+          const dateStr = dateVal 
+            ? (dateVal.seconds ? new Date(dateVal.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(dateVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
+            : '—';
+
+          // Join student info
+          const studentId = p.userId || p.studentId || p.learnerId || p.uid;
+          const matchedStudent = studentId ? learnersList.find(l => l.id === studentId || l.uid === studentId) : null;
+          const studentName = p.studentName || p.userName || p.name || matchedStudent?.fullName || matchedStudent?.name || '—';
+          const studentEmail = p.studentEmail || p.email || matchedStudent?.email || '';
+
+          // Join course info
+          const courseId = p.courseId || p.course_id;
+          const matchedCourse = courseId ? coursesList.find(c => c.id === courseId) : null;
+          const courseName = p.courseName || p.courseTitle || matchedCourse?.title || '—';
+
+          csvContent += `"${p.id}","${dateStr}","${courseName}","${studentName}","${studentEmail}","${getPurchaseAmount(p)}"\n`;
+        });
+      }
+
+      // Trigger browser download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `bhartam_transactions_report_${txStartDate || 'all'}_to_${txEndDate || 'all'}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert("Failed to export transactions: " + err.message);
     }
   };
 
@@ -4283,124 +4336,183 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
             {/* ── Transactions Tab ── */}
             <AnimatePresence mode="wait">
-              {activeTab === 'transactions' && (
-                <motion.div
-                  key="transactions"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-900">Platform Transactions</h2>
-                      <p className="text-sm text-slate-400 mt-0.5">All student purchase transactions on the platform.</p>
-                    </div>
-                    <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2 text-sm font-bold text-orange-600">
-                      <DollarSign className="w-4 h-4" />
-                      Total: ₹{purchasesList.reduce((s, p) => s + getPurchaseAmount(p), 0).toLocaleString()}
-                    </div>
-                  </div>
+              {activeTab === 'transactions' && (() => {
+                const filteredList = purchasesList.filter(p => {
+                  const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
+                  if (!dateVal) return true;
+                  const dateObj = dateVal.seconds ? new Date(dateVal.seconds * 1000) : new Date(dateVal);
+                  const time = dateObj.getTime();
 
-                  {/* Summary Cards */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {[
-                      { label: 'Total Revenue', value: `₹${purchasesList.reduce((s, p) => s + getPurchaseAmount(p), 0).toLocaleString()}`, icon: DollarSign, color: 'orange' },
-                      { label: 'Total Transactions', value: purchasesList.length, icon: CreditCard, color: 'blue' },
-                      { label: 'Avg. Order Value', value: purchasesList.length > 0 ? `₹${Math.round(purchasesList.reduce((s, p) => s + getPurchaseAmount(p), 0) / purchasesList.length).toLocaleString()}` : '₹0', icon: TrendingUp, color: 'emerald' },
-                    ].map((card, i) => (
-                      <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-${card.color}-50 border border-${card.color}-100`}>
-                          <card.icon className={`w-5 h-5 text-${card.color}-500`} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{card.label}</p>
-                          <p className="text-2xl font-black text-slate-900 mt-0.5">{card.value}</p>
-                        </div>
+                  if (txStartDate) {
+                    const start = new Date(txStartDate);
+                    start.setHours(0, 0, 0, 0);
+                    if (time < start.getTime()) return false;
+                  }
+                  if (txEndDate) {
+                    const end = new Date(txEndDate);
+                    end.setHours(23, 59, 59, 999);
+                    if (time > end.getTime()) return false;
+                  }
+                  return true;
+                });
+
+                const totalRevenue = filteredList.reduce((s, p) => s + getPurchaseAmount(p), 0);
+                const avgOrder = filteredList.length > 0 ? Math.round(totalRevenue / filteredList.length) : 0;
+
+                return (
+                  <motion.div
+                    key="transactions"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-900">Platform Transactions</h2>
+                        <p className="text-sm text-slate-400 mt-0.5">All student purchase transactions on the platform.</p>
                       </div>
-                    ))}
-                  </div>
-
-                  {/* Transactions Table */}
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-50">
-                      <h3 className="text-base font-black text-slate-800">Transaction History</h3>
+                      <div className="flex items-center gap-2 bg-orange-50 border border-orange-100 rounded-xl px-4 py-2 text-sm font-bold text-orange-600">
+                        <DollarSign className="w-4 h-4" />
+                        Total: ₹{totalRevenue.toLocaleString()}
+                      </div>
                     </div>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-[700px] w-full">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">#</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Student</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Course</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Amount</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Date</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {purchasesList.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="py-20 text-center">
-                                <div className="flex flex-col items-center gap-3">
-                                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
-                                    <CreditCard className="w-7 h-7 text-slate-300" />
-                                  </div>
-                                  <p className="text-slate-400 font-bold">No transactions recorded yet.</p>
-                                </div>
-                              </td>
+
+                    {/* Summary Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {[
+                        { label: 'Total Revenue', value: `₹${totalRevenue.toLocaleString()}`, icon: DollarSign, color: 'orange' },
+                        { label: 'Total Transactions', value: filteredList.length, icon: CreditCard, color: 'blue' },
+                        { label: 'Avg. Order Value', value: filteredList.length > 0 ? `₹${avgOrder.toLocaleString()}` : '₹0', icon: TrendingUp, color: 'emerald' },
+                      ].map((card, i) => (
+                        <div key={i} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex items-center gap-4">
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center bg-${card.color}-50 border border-${card.color}-100`}>
+                            <card.icon className={`w-5 h-5 text-${card.color}-500`} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{card.label}</p>
+                            <p className="text-2xl font-black text-slate-900 mt-0.5">{card.value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Date Filter & Export Row */}
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                      <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-400">From</span>
+                          <input
+                            type="date"
+                            value={txStartDate}
+                            onChange={e => setTxStartDate(e.target.value)}
+                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-400">To</span>
+                          <input
+                            type="date"
+                            value={txEndDate}
+                            onChange={e => setTxEndDate(e.target.value)}
+                            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:border-orange-500 focus:bg-white transition-all"
+                          />
+                        </div>
+                        {(txStartDate || txEndDate) && (
+                          <button
+                            onClick={() => { setTxStartDate(''); setTxEndDate(''); }}
+                            className="px-3 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 border border-rose-100 rounded-xl transition-all"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleExportFilteredTransactions(filteredList)}
+                        className="w-full sm:w-auto px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-xs font-black shadow-md shadow-orange-100 transition-all flex items-center justify-center gap-2"
+                      >
+                        <FileText className="w-4 h-4" />
+                        Export Excel (Filtered)
+                      </button>
+                    </div>
+
+                    {/* Transactions Table */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-50">
+                        <h3 className="text-base font-black text-slate-800">Transaction History</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-[700px] w-full">
+                          <thead>
+                            <tr className="bg-slate-50">
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">#</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Student</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Course</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Amount</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Date</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Status</th>
                             </tr>
-                          ) : purchasesList.map((p, idx) => {
-                            const amount = getPurchaseAmount(p);
-                            const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
-                            const dateStr = dateVal ? (dateVal.seconds ? new Date(dateVal.seconds * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(dateVal).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })) : '—';
-
-                            // ── Join student info from learnersList ─────────────────
-                            const studentId = p.userId || p.studentId || p.learnerId || p.uid;
-                            const matchedStudent = studentId
-                              ? learnersList.find(l => l.id === studentId || l.uid === studentId)
-                              : null;
-                            const studentName = p.studentName || p.userName || p.name || matchedStudent?.fullName || matchedStudent?.name || matchedStudent?.displayName || '—';
-                            const studentEmail = p.studentEmail || p.email || matchedStudent?.email || '';
-
-                            // ── Join course info from coursesList ───────────────────
-                            const courseId = p.courseId || p.course_id;
-                            const matchedCourse = courseId
-                              ? coursesList.find(c => c.id === courseId)
-                              : null;
-                            const courseName = p.courseName || p.courseTitle || p.course_title || matchedCourse?.title || matchedCourse?.courseName || '—';
-
-                            return (
-                              <tr key={p.id} className="hover:bg-orange-50/20 transition-colors">
-                                <td className="px-6 py-4 text-xs font-bold text-slate-400">{idx + 1}</td>
-                                <td className="px-4 py-4">
-                                  <p className="text-sm font-bold text-slate-800">{studentName}</p>
-                                  <p className="text-[11px] text-slate-400">{studentEmail}</p>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <p className="text-sm font-semibold text-slate-700 max-w-[200px] truncate">{courseName}</p>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="text-sm font-black text-emerald-600">₹{amount.toLocaleString()}</span>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="text-sm font-semibold text-slate-500">{dateStr}</span>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full border border-emerald-100">
-                                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
-                                    {p.status || 'Completed'}
-                                  </span>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {filteredList.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="py-20 text-center">
+                                  <div className="flex flex-col items-center gap-3">
+                                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
+                                      <CreditCard className="w-7 h-7 text-slate-300" />
+                                    </div>
+                                    <p className="text-slate-400 font-bold">No transactions found matching the filters.</p>
+                                  </div>
                                 </td>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                            ) : filteredList.map((p, idx) => {
+                              const amount = getPurchaseAmount(p);
+                              const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
+                              const dateStr = dateVal ? (dateVal.seconds ? new Date(dateVal.seconds * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(dateVal).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })) : '—';
+
+                              // student info
+                              const studentId = p.userId || p.studentId || p.learnerId || p.uid;
+                              const matchedStudent = studentId ? learnersList.find(l => l.id === studentId || l.uid === studentId) : null;
+                              const studentName = p.studentName || p.userName || p.name || matchedStudent?.fullName || matchedStudent?.name || matchedStudent?.displayName || '—';
+                              const studentEmail = p.studentEmail || p.email || matchedStudent?.email || '';
+
+                              // course info
+                              const courseId = p.courseId || p.course_id;
+                              const matchedCourse = courseId ? coursesList.find(c => c.id === courseId) : null;
+                              const courseName = p.courseName || p.courseTitle || p.course_title || matchedCourse?.title || matchedCourse?.courseName || '—';
+
+                              return (
+                                <tr key={p.id} className="hover:bg-orange-50/20 transition-colors">
+                                  <td className="px-6 py-4 text-xs font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-4 py-4">
+                                    <p className="text-sm font-bold text-slate-800">{studentName}</p>
+                                    <p className="text-[11px] text-slate-400">{studentEmail}</p>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <p className="text-sm font-semibold text-slate-700 max-w-[200px] truncate">{courseName}</p>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className="text-sm font-black text-emerald-600">₹{amount.toLocaleString()}</span>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className="text-sm font-semibold text-slate-500">{dateStr}</span>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full border border-emerald-100">
+                                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                                      {p.status || 'Completed'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                );
+              })()}
             </AnimatePresence>
 
             {/* ── Withdrawals Tab ── */}
