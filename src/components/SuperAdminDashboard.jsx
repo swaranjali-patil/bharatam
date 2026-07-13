@@ -764,22 +764,33 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         return `="${clean}"`; // Prevent scientific notation and retain leading zeros
       };
 
+      const formatText = (val) => {
+        if (val === undefined || val === null || val === '') return '="—"';
+        const cleaned = String(val).replace(/"/g, '""');
+        return `="${cleaned}"`;
+      };
+
+      const formatCurrency = (val) => {
+        const num = Number(val || 0);
+        return `="₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`;
+      };
+
       let csvContent = "\uFEFF"; // UTF-8 BOM
 
       // Report Header Title
       csvContent += "BHARTAM E-LEARNING — TRAINER HISTORY & AUDIT REPORT\n";
-      csvContent += `Generated On,${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ${new Date().toLocaleTimeString('en-IN')}\n\n`;
+      csvContent += `Generated On,="${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ${new Date().toLocaleTimeString('en-IN')}"\n\n`;
 
       // ── Trainer Profile & Financial Overview in Key-Value format (Columns A & B) ──
       csvContent += "=== TRAINER OVERVIEW ===,\n";
-      csvContent += `Trainer Name,"${trainer.fullName || 'Unknown'}"\n`;
-      csvContent += `Email Address,"${trainer.email || trainer.emailAddress || '—'}"\n`;
+      csvContent += `Trainer Name,${formatText(trainer.fullName || 'Unknown')}\n`;
+      csvContent += `Email Address,${formatText(trainer.email || trainer.emailAddress || '—')}\n`;
       csvContent += `Contact Number,${formatPhone(trainer.phoneNumber || trainer.studentContact)}\n`;
-      csvContent += `Joined Date,"${helperFormatDate(trainer.createdAt)}"\n`;
-      csvContent += `Total Earnings (INR),${walletData.totalEarnings}\n`;
-      csvContent += `Total Withdrawn (INR),${walletData.withdrawn}\n`;
-      csvContent += `Available Balance (INR),${walletData.available}\n`;
-      csvContent += `Pending Withdrawal Requests,${walletData.pending}\n\n`;
+      csvContent += `Joined Date,${formatText(helperFormatDate(trainer.createdAt))}\n`;
+      csvContent += `Total Earnings,${formatCurrency(walletData.totalEarnings)}\n`;
+      csvContent += `Total Withdrawn,${formatCurrency(walletData.withdrawn)}\n`;
+      csvContent += `Available Balance,${formatCurrency(walletData.available)}\n`;
+      csvContent += `Pending Withdrawal Requests,${formatText(walletData.pending)}\n\n`;
 
       // ── Tabular Sections (Row tables) ──
 
@@ -787,11 +798,12 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       csvContent += "=== UPLOADED COURSES ===\n";
       csvContent += "Course ID,Title,Category,Price (INR),Status,Commission Rate\n";
       if (courses.length === 0) {
-        csvContent += "No courses uploaded,\n";
+        csvContent += "No courses uploaded,,,,,\n";
       } else {
         courses.forEach(c => {
           const comm = c.commission !== undefined && c.commission !== null ? `${c.commission}%` : `${globalCommission}% (Global)`;
-          csvContent += `"${c.id}","${c.title}","${c.subject || c.category || 'General'}","${c.price === 'Free' ? 'Free' : c.price}","${c.status || 'Pending'}","${comm}"\n`;
+          const priceStr = c.price === 'Free' ? 'Free' : formatCurrency(c.price);
+          csvContent += `${formatText(c.id)},${formatText(c.title)},${formatText(c.subject || c.subject || c.category || 'General')},${priceStr},${formatText(c.status || 'Pending')},${formatText(comm)}\n`;
         });
       }
       csvContent += "\n";
@@ -800,7 +812,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       csvContent += "=== COURSE PURCHASES (SALES HISTORY) ===\n";
       csvContent += "Transaction ID,Date,Course Title,Student Name,Gross Price (INR),Commission (%),Platform Cut (INR),Net Credited (INR)\n";
       if (purchases.length === 0) {
-        csvContent += "No sales transactions found,\n";
+        csvContent += "No sales transactions found,,,,,,,\n";
       } else {
         purchases.forEach(p => {
           const matchedCourse = coursesList.find(c => c.id === p.courseId);
@@ -811,7 +823,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           const platformCut = Math.round((gross * commission) / 100);
           const net = gross - platformCut;
 
-          csvContent += `"${p.id}","${helperFormatDate(p.createdAt)}","${p.courseTitle || matchedCourse?.title || 'Course'}","${p.studentName || 'Learner'}","${gross}","${commission}%","${platformCut}","${net}"\n`;
+          csvContent += `${formatText(p.id)},${formatText(helperFormatDate(p.createdAt))},${formatText(p.courseTitle || matchedCourse?.title || 'Course')},${formatText(p.studentName || 'Learner')},${formatCurrency(gross)},${formatText(commission + '%')},${formatCurrency(platformCut)},${formatCurrency(net)}\n`;
         });
       }
       csvContent += "\n";
@@ -820,10 +832,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       csvContent += "=== WITHDRAWAL HISTORY ===\n";
       csvContent += "Request ID,Requested Date,Amount (INR),Method,Status,Approved Date,UTR/Transaction ID\n";
       if (withdrawals.length === 0) {
-        csvContent += "No withdrawals requested,\n";
+        csvContent += "No withdrawals requested,,,,,,\n";
       } else {
         withdrawals.forEach(w => {
-          csvContent += `"${w.id}","${helperFormatDate(w.createdAt)}","${w.amount}","${w.method || 'BankTransfer'}","${w.status || 'pending'}","${helperFormatDate(w.approvedAt)}","${w.utrId || '—'}"\n`;
+          csvContent += `${formatText(w.id)},${formatText(helperFormatDate(w.createdAt))},${formatCurrency(w.amount)},${formatText(w.method || 'BankTransfer')},${formatText(w.status || 'pending')},${formatText(helperFormatDate(w.approvedAt))},${formatText(w.utrId || '—')}\n`;
         });
       }
 
@@ -868,6 +880,36 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           }
         }
         return !d || isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN');
+      };
+
+      const helperFormatDateTime = (val) => {
+        if (!val) return '—';
+        let d = null;
+        if (typeof val.toDate === 'function') {
+          d = val.toDate();
+        } else if (val.seconds !== undefined) {
+          d = new Date(val.seconds * 1000);
+        } else if (val._seconds !== undefined) {
+          d = new Date(val._seconds * 1000);
+        } else if (val instanceof Date) {
+          d = val;
+        } else {
+          const sec = val.seconds || val._seconds;
+          if (sec !== undefined) {
+            d = new Date(sec * 1000);
+          } else {
+            d = new Date(val);
+          }
+        }
+        if (!d || isNaN(d.getTime())) return '—';
+        const day = String(d.getDate()).padStart(2, '0');
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const month = months[d.getMonth()];
+        const year = d.getFullYear();
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        const seconds = String(d.getSeconds()).padStart(2, '0');
+        return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
       };
 
       const printWindow = window.open('', '_blank');
@@ -1059,15 +1101,15 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             <div class="stats-row">
               <div class="stat-card" style="border-left: 4px solid #ea580c;">
                 <span>Total Earnings</span>
-                <p>₹${walletData.totalEarnings.toLocaleString('en-IN')}</p>
+                <p>₹${walletData.totalEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
               </div>
               <div class="stat-card" style="border-left: 4px solid #3b82f6;">
                 <span>Total Withdrawn</span>
-                <p>₹${walletData.withdrawn.toLocaleString('en-IN')}</p>
+                <p>₹${walletData.withdrawn.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
               </div>
               <div class="stat-card" style="border-left: 4px solid #10b981;">
                 <span>Available Balance</span>
-                <p>₹${walletData.available.toLocaleString('en-IN')}</p>
+                <p>₹${walletData.available.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
               </div>
               <div class="stat-card" style="border-left: 4px solid #f59e0b;">
                 <span>Pending Requests</span>
@@ -1093,7 +1135,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                     <td><code>${c.id}</code></td>
                     <td><strong>${c.title}</strong></td>
                     <td>${c.subject || c.category || 'General'}</td>
-                    <td>${c.price === 'Free' ? 'Free' : '₹' + Number(c.price).toLocaleString('en-IN')}</td>
+                    <td>${c.price === 'Free' ? 'Free' : '₹' + Number(c.price).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                     <td>${c.status || 'Pending'}</td>
                     <td>${c.commission !== undefined && c.commission !== null ? `${c.commission}%` : `${globalCommission}% (Global)`}</td>
                   </tr>
@@ -1106,17 +1148,19 @@ export default function SuperAdminDashboard({ user, onLogout }) {
               <thead>
                 <tr>
                   <th>Transaction ID</th>
-                  <th>Date</th>
+                  <th>Date & Time</th>
                   <th>Course Title</th>
                   <th>Student Name</th>
                   <th>Gross Price</th>
                   <th>Commission</th>
                   <th>Platform Cut</th>
                   <th>Net Earnings</th>
+                  <th>Payment Method</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                ${purchases.length === 0 ? `<tr><td colspan="8" style="text-align:center; color:#94a3b8; padding: 20px;">No sales history found</td></tr>` : purchases.map(p => {
+                ${purchases.length === 0 ? `<tr><td colspan="10" style="text-align:center; color:#94a3b8; padding: 20px;">No sales history found</td></tr>` : purchases.map(p => {
                   const matchedCourse = coursesList.find(c => c.id === p.courseId);
                   const commission = typeof p.commission === 'number'
                     ? p.commission
@@ -1128,13 +1172,15 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   return `
                     <tr>
                       <td><code>${p.id}</code></td>
-                      <td>${helperFormatDate(p.createdAt)}</td>
+                      <td>${helperFormatDateTime(p.createdAt)}</td>
                       <td><strong>${p.courseTitle || matchedCourse?.title || 'Course'}</strong></td>
                       <td>${p.studentName || 'Learner'}</td>
-                      <td>₹${gross.toLocaleString('en-IN')}</td>
+                      <td>₹${gross.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                       <td>${commission}%</td>
-                      <td>₹${platformCut.toLocaleString('en-IN')}</td>
-                      <td><strong>₹${net.toLocaleString('en-IN')}</strong></td>
+                      <td>₹${platformCut.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                      <td><strong>₹${net.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
+                      <td>${p.paymentMethod || p.method || 'Razorpay'}</td>
+                      <td><span style="color:#10b981; font-weight:bold;">${p.status || 'Completed'}</span></td>
                     </tr>
                   `;
                 }).join('')}
@@ -1159,7 +1205,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   <tr>
                     <td><code>${w.id}</code></td>
                     <td>${helperFormatDate(w.createdAt)}</td>
-                    <td><strong>₹${Number(w.amount).toLocaleString('en-IN')}</strong></td>
+                    <td><strong>₹${Number(w.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></td>
                     <td>${w.method || 'BankTransfer'}</td>
                     <td>${w.status || 'pending'}</td>
                     <td>${helperFormatDate(w.approvedAt)}</td>
@@ -1193,36 +1239,72 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
   const handleExportFilteredTransactions = (filteredList) => {
     try {
+      const formatText = (val) => {
+        if (val === undefined || val === null || val === '') return '="—"';
+        const cleaned = String(val).replace(/"/g, '""');
+        return `="${cleaned}"`;
+      };
+
+      const formatCurrency = (val) => {
+        const num = Number(val || 0);
+        return `="₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}"`;
+      };
+
       let csvContent = "\uFEFF"; // UTF-8 BOM
 
       // Header Row
-      csvContent += "=== PLATFORM TRANSACTION REGISTRY ===\n";
-      csvContent += `Date Filter Range,${txStartDate || 'Any Start'} to ${txEndDate || 'Any End'}\n`;
-      csvContent += `Export Date,${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ${new Date().toLocaleTimeString('en-IN')}\n\n`;
+      csvContent += "=== BHARTAM TRANSACTION REGISTRY ===\n";
+      csvContent += `Date Filter Range,${formatText(txStartDate || 'Any Start')} to ${formatText(txEndDate || 'Any End')}\n`;
+      csvContent += `Export Date,="${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} ${new Date().toLocaleTimeString('en-IN')}"\n\n`;
 
-      csvContent += "Transaction ID,Date,Course Name,Student Name,Student Email,Gross Price (INR)\n";
+      csvContent += "Transaction ID,Student Name,Trainer Name,Course Name,Course Price,Commission Percentage,Admin Commission,Trainer Earnings,Payment Method,Payment Status,Transaction Date & Time\n";
 
       if (filteredList.length === 0) {
-        csvContent += "No transactions matching selected date range found,\n";
+        csvContent += "No transactions matching selected date range found,,,,,,,,,,\n";
       } else {
         filteredList.forEach(p => {
-          const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
-          const dateStr = dateVal 
-            ? (dateVal.seconds ? new Date(dateVal.seconds * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : new Date(dateVal).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
-            : '—';
-
           // Join student info
           const studentId = p.userId || p.studentId || p.learnerId || p.uid;
           const matchedStudent = studentId ? learnersList.find(l => l.id === studentId || l.uid === studentId) : null;
           const studentName = p.studentName || p.userName || p.name || matchedStudent?.fullName || matchedStudent?.name || '—';
-          const studentEmail = p.studentEmail || p.email || matchedStudent?.email || '';
 
           // Join course info
           const courseId = p.courseId || p.course_id;
           const matchedCourse = courseId ? coursesList.find(c => c.id === courseId) : null;
           const courseName = p.courseName || p.courseTitle || matchedCourse?.title || '—';
 
-          csvContent += `"${p.id}","${dateStr}","${courseName}","${studentName}","${studentEmail}","${getPurchaseAmount(p)}"\n`;
+          // Join trainer info
+          const trainerId = p.trainerId || p.trainerUid;
+          const matchedTrainer = trainerId ? usersList.find(u => u.id === trainerId || u.uid === trainerId) : null;
+          const trainerName = p.trainerName || matchedTrainer?.fullName || matchedTrainer?.name || matchedCourse?.trainerName || '—';
+
+          // Financial breakdowns
+          const coursePrice = getPurchaseAmount(p);
+          const commission = typeof p.commission === 'number'
+            ? p.commission
+            : ((matchedCourse && typeof matchedCourse.commission === 'number') ? matchedCourse.commission : globalCommission);
+          
+          const adminCommission = (coursePrice * commission) / 100;
+          const trainerEarnings = coursePrice - adminCommission;
+          const paymentMethod = p.paymentMethod || p.method || 'Razorpay';
+          const paymentStatus = p.status || 'Completed';
+
+          // Date & Time Formatting (DD-MMM-YYYY HH:mm:ss)
+          const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
+          let dateTimeStr = '—';
+          if (dateVal) {
+            const d = dateVal.seconds ? new Date(dateVal.seconds * 1000) : new Date(dateVal);
+            const day = String(d.getDate()).padStart(2, '0');
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const month = months[d.getMonth()];
+            const year = d.getFullYear();
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const seconds = String(d.getSeconds()).padStart(2, '0');
+            dateTimeStr = `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+          }
+
+          csvContent += `${formatText(p.id)},${formatText(studentName)},${formatText(trainerName)},${formatText(courseName)},${formatCurrency(coursePrice)},${formatText(commission + '%')},${formatCurrency(adminCommission)},${formatCurrency(trainerEarnings)},${formatText(paymentMethod)},${formatText(paymentStatus)},${formatText(dateTimeStr)}\n`;
         });
       }
 
