@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import SignIn from './components/signIn.jsx';
-import SignUp from './components/Signup.jsx';
+import SignUp from './components/signup.jsx';
 import StaffPortal from './components/StaffPortal.jsx';
 import SuperAdminDashboard from './components/SuperAdminDashboard.jsx';
 import StudentChatbot from './components/StudentChatbot.jsx';
