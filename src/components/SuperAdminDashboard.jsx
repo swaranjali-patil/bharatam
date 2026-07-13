@@ -154,6 +154,11 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [txStartDate, setTxStartDate] = useState('');
   const [txEndDate, setTxEndDate] = useState('');
 
+  // Pagination page states
+  const [txPage, setTxPage] = useState(1);
+  const [withdrawalPage, setWithdrawalPage] = useState(1);
+  const [walletPage, setWalletPage] = useState(1);
+
   // Backup & Restore States
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [backupStatus, setBackupStatus] = useState(null);
@@ -164,6 +169,15 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   useEffect(() => {
     setCoursePage(1);
   }, [approvalTab, searchQuery, coursesList.length]);
+
+  useEffect(() => {
+    setTxPage(1);
+  }, [txStartDate, txEndDate, transactionSubTab]);
+
+  useEffect(() => {
+    setWithdrawalPage(1);
+    setWalletPage(1);
+  }, [transactionSubTab]);
 
   const openPreview = (rawUrl, title = '', mediaType = '') => {
     try {
@@ -4378,6 +4392,13 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 const totalRevenue = filteredList.reduce((s, p) => s + getPurchaseAmount(p), 0);
                 const avgOrder = filteredList.length > 0 ? Math.round(totalRevenue / filteredList.length) : 0;
 
+                // Pagination Calculations
+                const limitCount = 10;
+                const totalPages = Math.max(1, Math.ceil(filteredList.length / limitCount));
+                const safeTxPage = Math.min(txPage, totalPages);
+                const startIndex = (safeTxPage - 1) * limitCount;
+                const paginatedList = filteredList.slice(startIndex, startIndex + limitCount);
+
                 return (
                   <motion.div
                     key="transactions"
@@ -4484,7 +4505,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                                   </div>
                                 </td>
                               </tr>
-                            ) : filteredList.map((p, idx) => {
+                            ) : paginatedList.map((p, idx) => {
                               const amount = getPurchaseAmount(p);
                               const dateVal = p.createdAt || p.purchasedAt || p.timestamp;
                               const dateStr = dateVal ? (dateVal.seconds ? new Date(dateVal.seconds * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(dateVal).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })) : '—';
@@ -4502,7 +4523,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
                               return (
                                 <tr key={p.id} className="hover:bg-orange-50/20 transition-colors">
-                                  <td className="px-6 py-4 text-xs font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 text-xs font-bold text-slate-400">{startIndex + idx + 1}</td>
                                   <td className="px-4 py-4">
                                     <p className="text-sm font-bold text-slate-800">{studentName}</p>
                                     <p className="text-[11px] text-slate-400">{studentEmail}</p>
@@ -4528,6 +4549,34 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                           </tbody>
                         </table>
                       </div>
+                      {filteredList.length > limitCount && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-white">
+                          <p className="text-xs font-bold text-slate-400">
+                            Showing {startIndex + 1}-{Math.min(startIndex + limitCount, filteredList.length)} of {filteredList.length}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setTxPage(page => Math.max(1, page - 1))}
+                              disabled={safeTxPage === 1}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                              Previous
+                            </button>
+                            <span className="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 text-xs font-black">
+                              {safeTxPage} / {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setTxPage(page => Math.min(totalPages, page + 1))}
+                              disabled={safeTxPage === totalPages}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -4536,268 +4585,307 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
             {/* ── Withdrawals Tab ── */}
             <AnimatePresence mode="wait">
-              {activeTab === 'withdrawals' && (
-                <motion.div
-                  key="withdrawals"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
-                >
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div>
-                      <h2 className="text-2xl font-black text-slate-900">Withdrawal Requests</h2>
-                      <p className="text-sm text-slate-400 mt-0.5">Review and approve trainer payout requests.</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className="px-3.5 py-2 bg-amber-50 border border-amber-100 rounded-xl text-sm font-bold text-amber-600">
-                        {withdrawalsList.filter(w => (w.status || 'pending') === 'pending').length} Pending
-                      </span>
-                      <span className="px-3.5 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-sm font-bold text-emerald-600">
-                        {withdrawalsList.filter(w => w.status === 'approved').length} Approved
-                      </span>
-                    </div>
-                  </div>
+              {activeTab === 'withdrawals' && (() => {
+                // Pagination Calculations
+                const limitCount = 10;
+                const totalPages = Math.max(1, Math.ceil(withdrawalsList.length / limitCount));
+                const safePage = Math.min(withdrawalPage, totalPages);
+                const startIndex = (safePage - 1) * limitCount;
+                const paginatedList = withdrawalsList.slice(startIndex, startIndex + limitCount);
 
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="overflow-x-auto">
-                      <table className="min-w-[750px] w-full">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Trainer</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Amount</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Bank Details</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Requested On</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Status</th>
-                            <th className="text-right text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {withdrawalsList.length === 0 ? (
-                            <tr>
-                              <td colSpan={6} className="py-20 text-center">
-                                <div className="flex flex-col items-center gap-3">
-                                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
-                                    <ArrowDownLeft className="w-7 h-7 text-slate-300" />
-                                  </div>
-                                  <p className="text-slate-400 font-bold">No withdrawal requests yet.</p>
-                                  <p className="text-slate-300 text-xs">When trainers request payouts, they'll appear here.</p>
-                                </div>
-                              </td>
+                return (
+                  <motion.div
+                    key="withdrawals"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-3">
+                      <div>
+                        <h2 className="text-2xl font-black text-slate-900">Withdrawal Requests</h2>
+                        <p className="text-sm text-slate-400 mt-0.5">Review and approve trainer payout requests.</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="px-3.5 py-2 bg-amber-50 border border-amber-100 rounded-xl text-sm font-bold text-amber-600">
+                          {withdrawalsList.filter(w => (w.status || 'pending') === 'pending').length} Pending
+                        </span>
+                        <span className="px-3.5 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-sm font-bold text-emerald-600">
+                          {withdrawalsList.filter(w => w.status === 'approved').length} Approved
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="min-w-[750px] w-full">
+                          <thead>
+                            <tr className="bg-slate-50">
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Trainer</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Amount</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Bank Details</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Requested On</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Status</th>
+                              <th className="text-right text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Actions</th>
                             </tr>
-                          ) : withdrawalsList.map((w) => {
-                            const status = w.status || 'pending';
-                            const reqDate = w.createdAt ? (w.createdAt.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.createdAt)) : null;
-                            const dateStr = reqDate ? reqDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-                            return (
-                              <tr key={w.id} className="hover:bg-orange-50/20 transition-colors">
-                                <td className="px-6 py-4">
-                                  <p className="text-sm font-black text-slate-800">{w.trainerName || '—'}</p>
-                                  <p className="text-[11px] text-slate-400">{w.trainerEmail || ''}</p>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="text-base font-black text-slate-900">₹{Number(w.amount || 0).toLocaleString()}</span>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <div className="text-xs text-slate-600 space-y-0.5">
-                                    <p className="font-bold">{w.bankName || '—'}</p>
-                                    <p className="text-slate-400">{w.accountNumber ? `A/C ****${String(w.accountNumber).slice(-4)}` : (w.bankAccount ? `A/C ****${String(w.bankAccount).slice(-4)}` : '')}</p>
-                                    {w.ifscCode && <p className="text-slate-400 uppercase">{w.ifscCode}</p>}
-                                    {w.upiId && <p className="text-slate-400">UPI: {w.upiId}</p>}
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className="text-sm font-semibold text-slate-500">{dateStr}</span>
-                                </td>
-                                <td className="px-4 py-4">
-                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                      status === 'rejected' ? 'bg-red-50 text-red-500 border-red-100' :
-                                        'bg-amber-50 text-amber-600 border-amber-100'
-                                    }`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full ${status === 'approved' ? 'bg-emerald-500' :
-                                        status === 'rejected' ? 'bg-red-500' : 'bg-amber-500'
-                                      }`}></span>
-                                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="flex items-center justify-end gap-2">
-                                    {status === 'pending' && (
-                                      <>
-                                        <button
-                                          onClick={() => {
-                                            setApprovePayoutModal(w);
-                                            setApprovePayoutForm({ payAmount: String(w.amount || ''), utrId: '', proofFile: null, proofPreview: '', proofUrl: '' });
-                                          }}
-                                          className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
-                                        >
-                                          <BadgeCheck className="w-3.5 h-3.5" /> Approve
-                                        </button>
-                                        <button
-                                          onClick={async () => {
-                                            if (!confirm('Reject this withdrawal request?')) return;
-                                            try {
-                                              await updateDoc(doc(db, 'bharatam_withdrawal_requests', w.id), { status: 'rejected', rejectedAt: new Date(), rejectedBy: user?.fullName || 'Super Admin' });
-                                            } catch (err) { alert('Failed to reject: ' + err.message); }
-                                          }}
-                                          className="px-3.5 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 rounded-lg text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
-                                        >
-                                          <Ban className="w-3.5 h-3.5" /> Reject
-                                        </button>
-                                      </>
-                                    )}
-                                    {status === 'approved' && (
-                                      <div className="flex flex-col items-end gap-1">
-                                        <span className="text-emerald-500 text-xs font-bold flex items-center gap-1">
-                                          <BadgeCheck className="w-4 h-4" /> Approved
-                                        </span>
-                                        {w.utrId && <span className="text-[10px] text-slate-400 font-medium">UTR: {w.utrId}</span>}
-                                        {w.paidAmount && <span className="text-[10px] text-slate-400 font-medium">Paid: ₹{Number(w.paidAmount).toLocaleString()}</span>}
-                                        {w.proofUrl && (
-                                          <a href={w.proofUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-orange-500 underline font-medium">View Proof</a>
-                                        )}
-                                      </div>
-                                    )}
-                                    {status === 'rejected' && (
-                                      <span className="text-red-400 text-xs font-bold flex items-center gap-1">
-                                        <Ban className="w-4 h-4" /> Rejected
-                                      </span>
-                                    )}
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {withdrawalsList.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="py-20 text-center">
+                                  <div className="flex flex-col items-center gap-3">
+                                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
+                                      <ArrowDownLeft className="w-7 h-7 text-slate-300" />
+                                    </div>
+                                    <p className="text-slate-400 font-bold">No withdrawal requests yet.</p>
+                                    <p className="text-slate-300 text-xs">When trainers request payouts, they'll appear here.</p>
                                   </div>
                                 </td>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* ── Trainer Wallet Tab ── */}
-            <AnimatePresence mode="wait">
-              {activeTab === 'trainer_wallet' && (
-                <motion.div
-                  key="trainer_wallet"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-6"
-                >
-                  <div>
-                    <h2 className="text-2xl font-black text-slate-900">Trainer Wallets</h2>
-                    <p className="text-sm text-slate-400 mt-0.5">Overview of each trainer's earnings, withdrawals, and available balance.</p>
-                  </div>
-
-                  {/* Summary */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {[
-                      {
-                        label: 'Total Trainer Earnings',
-                        value: `₹${trainerWalletsList.reduce((s, w) => s + Number(w.totalEarnings || 0), 0).toLocaleString()}`,
-                        icon: TrendingUp, bg: 'bg-orange-50', border: 'border-orange-100', iconColor: 'text-orange-500'
-                      },
-                      {
-                        label: 'Total Withdrawn',
-                        value: `₹${trainerWalletsList.reduce((s, w) => s + Number(w.withdrawn || 0), 0).toLocaleString()}`,
-                        icon: ArrowDownLeft, bg: 'bg-blue-50', border: 'border-blue-100', iconColor: 'text-blue-500'
-                      },
-                      {
-                        label: 'Total Available Balance',
-                        value: `₹${trainerWalletsList.reduce((s, w) => s + Math.max(0, Number(w.totalEarnings || 0) - Number(w.withdrawn || 0)), 0).toLocaleString()}`,
-                        icon: Wallet, bg: 'bg-emerald-50', border: 'border-emerald-100', iconColor: 'text-emerald-500'
-                      },
-                    ].map((card, i) => (
-                      <div key={i} className={`bg-white rounded-2xl border ${card.border} shadow-sm p-5 flex items-center gap-4`}>
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.bg} border ${card.border}`}>
-                          <card.icon className={`w-5 h-5 ${card.iconColor}`} />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{card.label}</p>
-                          <p className="text-2xl font-black text-slate-900 mt-0.5">{card.value}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Trainer Wallet Table */}
-                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-50">
-                      <h3 className="text-base font-black text-slate-800">Trainer Wallet Overview</h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-[700px] w-full">
-                        <thead>
-                          <tr className="bg-slate-50">
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Trainer</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Total Earnings</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Withdrawn</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Available Balance</th>
-                            <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Pending Requests</th>
-                            <th className="text-right text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                          {(() => {
-                            // Merge trainer_wallets with trainer info from usersList
-                            const trainers = usersList.filter(u => u.role === 'trainer');
-                            // Build map from trainerWalletsList
-                            const walletMap = {};
-                            trainerWalletsList.forEach(w => { walletMap[w.id] = w; });
-                            // Also build wallet from purchasesList per trainer
-                            const earningsMap = {};
-                            purchasesList.forEach(p => {
-                              const tid = p.trainerId || p.trainerUid;
-                              if (tid) {
-                                const matchedCourse = coursesList.find(c => c.id === p.courseId);
-                                const commission = typeof p.commission === 'number'
-                                  ? p.commission
-                                  : ((matchedCourse && typeof matchedCourse.commission === 'number') ? matchedCourse.commission : globalCommission);
-                                const trainerShare = (100 - commission) / 100;
-                                const trainerAmount = getPurchaseAmount(p) * trainerShare;
-                                earningsMap[tid] = (earningsMap[tid] || 0) + trainerAmount;
-                              }
-                            });
-                            // Pending withdrawal requests per trainer
-                            const pendingMap = {};
-                            withdrawalsList.filter(w => (w.status || 'pending') === 'pending').forEach(w => {
-                              if (w.trainerId) pendingMap[w.trainerId] = (pendingMap[w.trainerId] || 0) + 1;
-                            });
-
-                            const rows = trainers.length > 0 ? trainers.map(trainer => {
-                              const wallet = walletMap[trainer.id] || {};
-                              const totalEarnings = Number(wallet.totalEarnings || earningsMap[trainer.id] || 0);
-                              const withdrawn = Number(wallet.withdrawn || 0);
-                              const available = Math.max(0, totalEarnings - withdrawn);
-                              const pending = pendingMap[trainer.id] || 0;
-                              return { trainer, totalEarnings, withdrawn, available, pending };
-                            }) : trainerWalletsList.map(w => ({
-                              trainer: { id: w.id, fullName: w.trainerName || w.name || 'Unknown', email: w.email || '' },
-                              totalEarnings: Number(w.totalEarnings || 0),
-                              withdrawn: Number(w.withdrawn || 0),
-                              available: Math.max(0, Number(w.totalEarnings || 0) - Number(w.withdrawn || 0)),
-                              pending: pendingMap[w.id] || 0,
-                            }));
-
-                            if (rows.length === 0) {
+                            ) : paginatedList.map((w) => {
+                              const status = w.status || 'pending';
+                              const reqDate = w.createdAt ? (w.createdAt.seconds ? new Date(w.createdAt.seconds * 1000) : new Date(w.createdAt)) : null;
+                              const dateStr = reqDate ? reqDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
                               return (
-                                <tr>
-                                  <td colSpan={6} className="py-20 text-center">
-                                    <div className="flex flex-col items-center gap-3">
-                                      <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
-                                        <Wallet className="w-7 h-7 text-slate-300" />
-                                      </div>
-                                      <p className="text-slate-400 font-bold">No trainer wallets found.</p>
-                                      <p className="text-slate-300 text-xs">Wallets are created when trainers receive earnings.</p>
+                                <tr key={w.id} className="hover:bg-orange-50/20 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <p className="text-sm font-black text-slate-800">{w.trainerName || '—'}</p>
+                                    <p className="text-[11px] text-slate-400">{w.trainerEmail || ''}</p>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className="text-base font-black text-slate-900">₹{Number(w.amount || 0).toLocaleString()}</span>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <div className="text-xs text-slate-600 space-y-0.5">
+                                      <p className="font-bold">{w.bankName || '—'}</p>
+                                      <p className="text-slate-400">{w.accountNumber ? `A/C ****${String(w.accountNumber).slice(-4)}` : (w.bankAccount ? `A/C ****${String(w.bankAccount).slice(-4)}` : '')}</p>
+                                      {w.ifscCode && <p className="text-slate-400 uppercase">{w.ifscCode}</p>}
+                                      {w.upiId && <p className="text-slate-400">UPI: {w.upiId}</p>}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className="text-sm font-semibold text-slate-500">{dateStr}</span>
+                                  </td>
+                                  <td className="px-4 py-4">
+                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-full border ${status === 'approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                        status === 'rejected' ? 'bg-red-50 text-red-500 border-red-100' :
+                                          'bg-amber-50 text-amber-600 border-amber-100'
+                                      }`}>
+                                      <span className={`w-1.5 h-1.5 rounded-full ${status === 'approved' ? 'bg-emerald-500' :
+                                          status === 'rejected' ? 'bg-red-500' : 'bg-amber-500'
+                                        }`}></span>
+                                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center justify-end gap-2">
+                                      {status === 'pending' && (
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              setApprovePayoutModal(w);
+                                              setApprovePayoutForm({ payAmount: String(w.amount || ''), utrId: '', proofFile: null, proofPreview: '', proofUrl: '' });
+                                            }}
+                                            className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-xs font-bold shadow-sm transition-all active:scale-95 flex items-center gap-1.5"
+                                          >
+                                            <BadgeCheck className="w-3.5 h-3.5" /> Approve
+                                          </button>
+                                          <button
+                                            onClick={async () => {
+                                              if (!confirm('Reject this withdrawal request?')) return;
+                                              try {
+                                                await updateDoc(doc(db, 'bharatam_withdrawal_requests', w.id), { status: 'rejected', rejectedAt: new Date(), rejectedBy: user?.fullName || 'Super Admin' });
+                                              } catch (err) { alert('Failed to reject: ' + err.message); }
+                                            }}
+                                            className="px-3.5 py-1.5 bg-white border border-red-200 text-red-500 hover:bg-red-50 rounded-lg text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                                          >
+                                            <Ban className="w-3.5 h-3.5" /> Reject
+                                          </button>
+                                        </>
+                                      )}
+                                      {status === 'approved' && (
+                                        <div className="flex flex-col items-end gap-1">
+                                          <span className="text-emerald-500 text-xs font-bold flex items-center gap-1">
+                                            <BadgeCheck className="w-4 h-4" /> Approved
+                                          </span>
+                                          {w.utrId && <span className="text-[10px] text-slate-400 font-medium">UTR: {w.utrId}</span>}
+                                          {w.paidAmount && <span className="text-[10px] text-slate-400 font-medium">Paid: ₹{Number(w.paidAmount).toLocaleString()}</span>}
+                                          {w.proofUrl && (
+                                            <a href={w.proofUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-orange-500 underline font-medium">View Proof</a>
+                                          )}
+                                        </div>
+                                      )}
+                                      {status === 'rejected' && (
+                                        <span className="text-red-400 text-xs font-bold flex items-center gap-1">
+                                          <Ban className="w-4 h-4" /> Rejected
+                                        </span>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
                               );
-                            }
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {withdrawalsList.length > limitCount && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-white">
+                          <p className="text-xs font-bold text-slate-400">
+                            Showing {startIndex + 1}-{Math.min(startIndex + limitCount, withdrawalsList.length)} of {withdrawalsList.length}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawalPage(page => Math.max(1, page - 1))}
+                              disabled={safePage === 1}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                              Previous
+                            </button>
+                            <span className="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 text-xs font-black">
+                              {safePage} / {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawalPage(page => Math.min(totalPages, page + 1))}
+                              disabled={safePage === totalPages}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })()}
+            </AnimatePresence>
 
-                            return rows.map(({ trainer, totalEarnings, withdrawn, available, pending }) => (
+            {/* ── Trainer Wallet Tab ── */}
+            <AnimatePresence mode="wait">
+              {activeTab === 'trainer_wallet' && (() => {
+                // Merge trainer_wallets with trainer info from usersList
+                const trainers = usersList.filter(u => u.role === 'trainer');
+                // Build map from trainerWalletsList
+                const walletMap = {};
+                trainerWalletsList.forEach(w => { walletMap[w.id] = w; });
+                // Also build wallet from purchasesList per trainer
+                const earningsMap = {};
+                purchasesList.forEach(p => {
+                  const tid = p.trainerId || p.trainerUid;
+                  if (tid) {
+                    const matchedCourse = coursesList.find(c => c.id === p.courseId);
+                    const commission = typeof p.commission === 'number'
+                      ? p.commission
+                      : ((matchedCourse && typeof matchedCourse.commission === 'number') ? matchedCourse.commission : globalCommission);
+                    const trainerShare = (100 - commission) / 100;
+                    const trainerAmount = getPurchaseAmount(p) * trainerShare;
+                    earningsMap[tid] = (earningsMap[tid] || 0) + trainerAmount;
+                  }
+                });
+                // Pending withdrawal requests per trainer
+                const pendingMap = {};
+                withdrawalsList.filter(w => (w.status || 'pending') === 'pending').forEach(w => {
+                  if (w.trainerId) pendingMap[w.trainerId] = (pendingMap[w.trainerId] || 0) + 1;
+                });
+
+                const rows = trainers.length > 0 ? trainers.map(trainer => {
+                  const wallet = walletMap[trainer.id] || {};
+                  const totalEarnings = Number(wallet.totalEarnings || earningsMap[trainer.id] || 0);
+                  const withdrawn = Number(wallet.withdrawn || 0);
+                  const available = Math.max(0, totalEarnings - withdrawn);
+                  const pending = pendingMap[trainer.id] || 0;
+                  return { trainer, totalEarnings, withdrawn, available, pending };
+                }) : trainerWalletsList.map(w => ({
+                  trainer: { id: w.id, fullName: w.trainerName || w.name || 'Unknown', email: w.email || '' },
+                  totalEarnings: Number(w.totalEarnings || 0),
+                  withdrawn: Number(w.withdrawn || 0),
+                  available: Math.max(0, Number(w.totalEarnings || 0) - Number(w.withdrawn || 0)),
+                  pending: pendingMap[w.id] || 0,
+                }));
+
+                const limitCount = 10;
+                const totalPages = Math.max(1, Math.ceil(rows.length / limitCount));
+                const safePage = Math.min(walletPage, totalPages);
+                const startIndex = (safePage - 1) * limitCount;
+                const paginatedRows = rows.slice(startIndex, startIndex + limitCount);
+
+                return (
+                  <motion.div
+                    key="trainer_wallet"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-6"
+                  >
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900">Trainer Wallets</h2>
+                      <p className="text-sm text-slate-400 mt-0.5">Overview of each trainer's earnings, withdrawals, and available balance.</p>
+                    </div>
+
+                    {/* Summary */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {[
+                        {
+                          label: 'Total Trainer Earnings',
+                          value: `₹${trainerWalletsList.reduce((s, w) => s + Number(w.totalEarnings || 0), 0).toLocaleString()}`,
+                          icon: TrendingUp, bg: 'bg-orange-50', border: 'border-orange-100', iconColor: 'text-orange-500'
+                        },
+                        {
+                          label: 'Total Withdrawn',
+                          value: `₹${trainerWalletsList.reduce((s, w) => s + Number(w.withdrawn || 0), 0).toLocaleString()}`,
+                          icon: ArrowDownLeft, bg: 'bg-blue-50', border: 'border-blue-100', iconColor: 'text-blue-500'
+                        },
+                        {
+                          label: 'Total Available Balance',
+                          value: `₹${trainerWalletsList.reduce((s, w) => s + Math.max(0, Number(w.totalEarnings || 0) - Number(w.withdrawn || 0)), 0).toLocaleString()}`,
+                          icon: Wallet, bg: 'bg-emerald-50', border: 'border-emerald-100', iconColor: 'text-emerald-500'
+                        },
+                      ].map((card, i) => (
+                        <div key={i} className={`bg-white rounded-2xl border ${card.border} shadow-sm p-5 flex items-center gap-4`}>
+                          <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${card.bg} border ${card.border}`}>
+                            <card.icon className={`w-5 h-5 ${card.iconColor}`} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">{card.label}</p>
+                            <p className="text-2xl font-black text-slate-900 mt-0.5">{card.value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Trainer Wallet Table */}
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                      <div className="px-6 py-4 border-b border-slate-50">
+                        <h3 className="text-base font-black text-slate-800">Trainer Wallet Overview</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-[700px] w-full">
+                          <thead>
+                            <tr className="bg-slate-50">
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Trainer</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Total Earnings</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Withdrawn</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Available Balance</th>
+                              <th className="text-left text-[11px] font-black text-slate-400 uppercase tracking-wider px-4 py-3.5">Pending Requests</th>
+                              <th className="text-right text-[11px] font-black text-slate-400 uppercase tracking-wider px-6 py-3.5">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-50">
+                            {rows.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="py-20 text-center">
+                                  <div className="flex flex-col items-center gap-3">
+                                    <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center">
+                                      <Wallet className="w-7 h-7 text-slate-300" />
+                                    </div>
+                                    <p className="text-slate-400 font-bold">No trainer wallets found.</p>
+                                    <p className="text-slate-300 text-xs">Wallets are created when trainers receive earnings.</p>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : paginatedRows.map(({ trainer, totalEarnings, withdrawn, available, pending }) => (
                               <tr key={trainer.id} className="hover:bg-orange-50/20 transition-colors animate-fadeIn">
                                 <td className="px-6 py-4">
                                   <div className="flex items-center gap-3">
@@ -4850,14 +4938,42 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                                   </div>
                                 </td>
                               </tr>
-                            ));
-                          })()}
-                        </tbody>
-                      </table>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {rows.length > limitCount && (
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-white">
+                          <p className="text-xs font-bold text-slate-400">
+                            Showing {startIndex + 1}-{Math.min(startIndex + limitCount, rows.length)} of {rows.length}
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setWalletPage(page => Math.max(1, page - 1))}
+                              disabled={safePage === 1}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                              Previous
+                            </button>
+                            <span className="px-3 py-1.5 rounded-lg bg-orange-50 text-orange-600 text-xs font-black">
+                              {safePage} / {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setWalletPage(page => Math.min(totalPages, page + 1))}
+                              disabled={safePage === totalPages}
+                              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-black text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                </motion.div>
-              )}
+                  </motion.div>
+                );
+              })()}
             </AnimatePresence>
           </div>
         </main>
