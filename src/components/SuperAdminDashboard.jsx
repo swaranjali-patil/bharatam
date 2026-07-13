@@ -74,6 +74,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categoriesList, setCategoriesList] = useState([]);
   const [categorySearch, setCategorySearch] = useState('');
+  const [tagsList, setTagsList] = useState([]);
+  const [newTagName, setNewTagName] = useState('');
+  const [tagSearch, setTagSearch] = useState('');
+  const [categoryActiveTab, setCategoryActiveTab] = useState('categories'); // 'categories' | 'tags'
+  const [policies, setPolicies] = useState({ terms: '', privacy: '', trainerGuidelines: '' });
+  const [isPoliciesModalOpen, setIsPoliciesModalOpen] = useState(false);
+  const [policiesInput, setPoliciesInput] = useState({ terms: '', privacy: '', trainerGuidelines: '' });
+  const [isSavingPolicies, setIsSavingPolicies] = useState(false);
   const [newAdForm, setNewAdForm] = useState({ title: '', imageUrl: '', linkUrl: '' });
   const [withdrawalsList, setWithdrawalsList] = useState([]);
   const [trainerWalletsList, setTrainerWalletsList] = useState([]);
@@ -380,6 +388,19 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       setCategoriesList(mockCategories);
     });
 
+    const unsubscribeTags = onSnapshot(collection(db, "bharatam_tags"), (snapshot) => {
+      const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => {
+          const aT = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
+          const bT = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime();
+          return bT - aT;
+        });
+      setTagsList(fetched);
+    }, (error) => {
+      console.error("Error fetching tags:", error);
+      setTagsList([]);
+    });
+
     const loadFallbackPurchases = async () => {
       const collectionsToTry = ['payments', 'orders', 'enrollments'];
       for (const collectionName of collectionsToTry) {
@@ -483,12 +504,32 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       console.error('Error fetching settings:', err);
     });
 
+    const unsubscribePolicies = onSnapshot(doc(db, 'bharatam_settings', 'policies'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setPolicies({
+          terms: data.terms || '',
+          privacy: data.privacy || '',
+          trainerGuidelines: data.trainerGuidelines || '',
+        });
+      } else {
+        setPolicies({
+          terms: 'Standard terms of use apply to all courses.',
+          privacy: 'We respect user data and privacy.',
+          trainerGuidelines: 'Trainers must provide high-quality educational material.',
+        });
+      }
+    }, (err) => {
+      console.error('Error fetching policies:', err);
+    });
+
     return () => {
       unsubscribeCourses();
       unsubscribeUsers();
       unsubscribeLearners();
       unsubscribeAds();
       unsubscribeCategories();
+      unsubscribeTags();
       unsubscribePurchases();
       unsubscribePayouts();
       unsubscribeWithdrawals();
@@ -496,6 +537,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       unsubscribeSupportQueries();
       unsubscribeSupportFaqs();
       unsubscribeSettings();
+      unsubscribePolicies();
     };
   }, []);
 
@@ -2664,6 +2706,51 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     }
   };
 
+  const handleAddTag = async () => {
+    const name = newTagName.trim();
+    if (!name) {
+      alert("Please enter a tag name");
+      return;
+    }
+    try {
+      const now = new Date();
+      await addDoc(collection(db, "bharatam_tags"), {
+        name,
+        createdAt: now,
+      });
+      setNewTagName('');
+    } catch (err) {
+      console.error("Failed to add tag:", err);
+      alert("Failed to add tag: " + err.message);
+    }
+  };
+
+  const handleDeleteTag = async (tagId) => {
+    if (!confirm("Delete this tag? This cannot be undone.")) return;
+    try {
+      await deleteDoc(doc(db, "bharatam_tags", tagId));
+    } catch (err) {
+      console.error("Failed to delete tag:", err);
+      alert("Failed to delete tag: " + err.message);
+    }
+  };
+
+  const handleSavePolicies = async () => {
+    setIsSavingPolicies(true);
+    try {
+      await setDoc(doc(db, 'bharatam_settings', 'policies'), {
+        ...policiesInput,
+        updatedAt: new Date(),
+      }, { merge: true });
+      setIsPoliciesModalOpen(false);
+    } catch (err) {
+      console.error("Failed to save policies:", err);
+      alert("Failed to save policies: " + err.message);
+    } finally {
+      setIsSavingPolicies(false);
+    }
+  };
+
   const handleQuickAddAdvertisement = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -4335,6 +4422,12 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                             if (item.id === 'commission') {
                               setCommissionInput(globalCommission);
                               setIsEditCommissionOpen(true);
+                            } else if (item.id === 'categories') {
+                              setCategoryActiveTab('categories');
+                              setIsAddCategoryOpen(true);
+                            } else if (item.id === 'policies') {
+                              setPoliciesInput({ ...policies });
+                              setIsPoliciesModalOpen(true);
                             }
                           }}
                           className="flex items-start gap-4 p-5 bg-white border border-slate-200 rounded-2xl hover:border-orange-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 text-left group"
@@ -5498,22 +5591,42 @@ export default function SuperAdminDashboard({ user, onLogout }) {
               className="fixed inset-0 z-[100] bg-[#f2f4f8] flex flex-col overflow-hidden"
             >
               {/* Header */}
-              <div className="flex-shrink-0 bg-white border-b border-gray-100 px-10 h-16 flex items-center gap-4 shadow-sm">
+              <div className="flex-shrink-0 bg-white border-b border-gray-100 px-10 h-16 flex items-center gap-6 shadow-sm">
                 <button
-                  onClick={() => { setIsAddCategoryOpen(false); setNewCategoryName(''); setCategorySearch(''); }}
+                  onClick={() => { setIsAddCategoryOpen(false); setNewCategoryName(''); setNewTagName(''); setCategorySearch(''); setTagSearch(''); }}
                   className="w-9 h-9 rounded-xl bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5 text-gray-600" />
                 </button>
-                <h1 className="text-xl font-bold text-gray-900">Categories</h1>
+                
+                {/* Tab Switcher */}
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setCategoryActiveTab('categories')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${categoryActiveTab === 'categories' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Course Categories
+                  </button>
+                  <button
+                    onClick={() => setCategoryActiveTab('tags')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${categoryActiveTab === 'tags' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                  >
+                    Course Tags
+                  </button>
+                </div>
+
                 <span className="ml-auto text-sm font-semibold text-gray-400">
-                  {(() => {
-                    const firestoreNames = new Set(categoriesList.map(c => (c.name || '').trim().toLowerCase()));
-                    const courseNames = new Set();
-                    coursesList.forEach(c => { const n = (c.subject || c.category || '').trim(); if (n) courseNames.add(n.toLowerCase()); });
-                    const total = firestoreNames.size + [...courseNames].filter(n => !firestoreNames.has(n)).length;
-                    return `${total} ${total === 1 ? 'category' : 'categories'}`;
-                  })()}
+                  {categoryActiveTab === 'categories' ? (
+                    (() => {
+                      const firestoreNames = new Set(categoriesList.map(c => (c.name || '').trim().toLowerCase()));
+                      const courseNames = new Set();
+                      coursesList.forEach(c => { const n = (c.subject || c.category || '').trim(); if (n) courseNames.add(n.toLowerCase()); });
+                      const total = firestoreNames.size + [...courseNames].filter(n => !firestoreNames.has(n)).length;
+                      return `${total} ${total === 1 ? 'category' : 'categories'}`;
+                    })()
+                  ) : (
+                    `${tagsList.length} ${tagsList.length === 1 ? 'tag' : 'tags'}`
+                  )}
                 </span>
               </div>
 
@@ -5522,132 +5635,338 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
                 {/* LEFT — Add form */}
                 <div className="w-96 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col p-8 gap-6">
-                  <div>
-                    <h2 className="text-base font-bold text-gray-800 mb-1">Add Category</h2>
-                    <p className="text-sm text-gray-400">Enter a name to create a new course category.</p>
-                  </div>
+                  {categoryActiveTab === 'categories' ? (
+                    <>
+                      <div>
+                        <h2 className="text-base font-bold text-gray-800 mb-1">Add Category</h2>
+                        <p className="text-sm text-gray-400">Enter a name to create a new course category.</p>
+                      </div>
 
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={newCategoryName}
-                      onChange={e => setNewCategoryName(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
-                      placeholder="Enter category name"
-                      className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-base font-medium text-gray-900 placeholder:text-gray-300 outline-none focus:border-orange-400 focus:bg-white transition-all"
-                    />
-                    <button
-                      onClick={handleAddCategory}
-                      disabled={!newCategoryName.trim()}
-                      className="w-full flex items-center justify-center gap-2 py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-all active:scale-[0.98] shadow-md shadow-orange-200"
-                    >
-                      <Plus className="w-5 h-5" />
-                      Add Category
-                    </button>
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={newCategoryName}
+                          onChange={e => setNewCategoryName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+                          placeholder="Enter category name"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-base font-medium text-gray-900 placeholder:text-gray-300 outline-none focus:border-orange-400 focus:bg-white transition-all"
+                        />
+                        <button
+                          onClick={handleAddCategory}
+                          disabled={!newCategoryName.trim()}
+                          className="w-full flex items-center justify-center gap-2 py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-all active:scale-[0.98] shadow-md shadow-orange-200"
+                        >
+                          <Plus className="w-5 h-5" />
+                          Add Category
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <h2 className="text-base font-bold text-gray-800 mb-1">Add Tag</h2>
+                        <p className="text-sm text-gray-400">Enter a name to create a new course tag.</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={newTagName}
+                          onChange={e => setNewTagName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAddTag()}
+                          placeholder="Enter tag name"
+                          className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 text-base font-medium text-gray-900 placeholder:text-gray-300 outline-none focus:border-orange-400 focus:bg-white transition-all"
+                        />
+                        <button
+                          onClick={handleAddTag}
+                          disabled={!newTagName.trim()}
+                          className="w-full flex items-center justify-center gap-2 py-4 bg-orange-500 hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-base rounded-2xl transition-all active:scale-[0.98] shadow-md shadow-orange-200"
+                        >
+                          <Plus className="w-5 h-5" />
+                          Add Tag
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* RIGHT — Taxonomy list */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                  {categoryActiveTab === 'categories' ? (
+                    <>
+                      {/* Toolbar */}
+                      <div className="flex-shrink-0 px-10 py-5 flex items-center justify-between">
+                        <h3 className="text-base font-bold text-gray-800">Available Categories</h3>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                          <input
+                            type="text"
+                            placeholder="Search..."
+                            value={categorySearch}
+                            onChange={e => setCategorySearch(e.target.value)}
+                            className="pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 placeholder:text-gray-300 outline-none focus:border-orange-400 transition-all w-52 shadow-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* List */}
+                      <div className="flex-1 overflow-y-auto px-10 pb-10">
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                          {(() => {
+                            const fromFirestore = categoriesList.map(cat => ({
+                              id: cat.id,
+                              name: cat.name || '',
+                              fromFirestore: true,
+                            }));
+
+                            const firestoreNames = new Set(fromFirestore.map(c => c.name.trim().toLowerCase()));
+
+                            const fromCourses = [];
+                            const seen = new Set(firestoreNames);
+                            coursesList.forEach(course => {
+                              const name = (course.subject || course.category || '').trim();
+                              if (name && !seen.has(name.toLowerCase())) {
+                                seen.add(name.toLowerCase());
+                                fromCourses.push({ id: `course-cat-${name}`, name, fromFirestore: false });
+                              }
+                            });
+
+                            const allCategories = [...fromFirestore, ...fromCourses].sort((a, b) =>
+                              a.name.localeCompare(b.name)
+                            );
+
+                            const filtered = allCategories.filter(cat =>
+                              !categorySearch ||
+                              cat.name.toLowerCase().includes(categorySearch.toLowerCase())
+                            );
+
+                            if (filtered.length === 0) {
+                              return (
+                                <div className="py-20 flex flex-col items-center gap-3">
+                                  <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center">
+                                    <Tags className="w-6 h-6 text-orange-300" />
+                                  </div>
+                                  <p className="text-base font-semibold text-gray-400">
+                                    {categorySearch ? 'No matching categories' : 'No categories yet'}
+                                  </p>
+                                  <p className="text-sm text-gray-300">
+                                    {categorySearch ? 'Try a different search term' : 'Add your first category on the left'}
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <ul className="divide-y divide-gray-50">
+                                {filtered.map((cat, idx) => (
+                                  <motion.li
+                                    key={cat.id}
+                                    initial={{ opacity: 0, x: -8 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: idx * 0.03 }}
+                                    className="flex items-center gap-4 px-6 py-4 hover:bg-orange-50/40 transition-colors group"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                                      <Tags className="w-5 h-5 text-orange-500" />
+                                    </div>
+
+                                    <span className="flex-1 text-base font-semibold text-gray-800">
+                                      {cat.name}
+                                    </span>
+
+                                    {cat.fromFirestore && (
+                                      <button
+                                        onClick={() => handleDeleteCategory(cat.id)}
+                                        className="opacity-0 group-hover:opacity-100 w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-all"
+                                      >
+                                        <Trash2 className="w-4 h-4 text-red-400" />
+                                      </button>
+                                    )}
+                                  </motion.li>
+                                ))}
+                              </ul>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Toolbar */}
+                      <div className="flex-shrink-0 px-10 py-5 flex items-center justify-between">
+                        <h3 className="text-base font-bold text-gray-800">Available Tags</h3>
+                        <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                          <input
+                            type="text"
+                            placeholder="Search..."
+                            value={tagSearch}
+                            onChange={e => setTagSearch(e.target.value)}
+                            className="pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 placeholder:text-gray-300 outline-none focus:border-orange-400 transition-all w-52 shadow-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* List */}
+                      <div className="flex-1 overflow-y-auto px-10 pb-10">
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                          {(() => {
+                            const filtered = tagsList.filter(tag =>
+                              !tagSearch ||
+                              (tag.name || '').toLowerCase().includes(tagSearch.toLowerCase())
+                            );
+
+                            if (filtered.length === 0) {
+                              return (
+                                <div className="py-20 flex flex-col items-center gap-3">
+                                  <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center">
+                                    <Tags className="w-6 h-6 text-indigo-300" />
+                                  </div>
+                                  <p className="text-base font-semibold text-gray-400">
+                                    {tagSearch ? 'No matching tags' : 'No tags yet'}
+                                  </p>
+                                  <p className="text-sm text-gray-300">
+                                    {tagSearch ? 'Try a different search term' : 'Add your first tag on the left'}
+                                  </p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <ul className="divide-y divide-gray-50">
+                                {filtered.map((tag, idx) => (
+                                  <motion.li
+                                    key={tag.id}
+                                    initial={{ opacity: 0, x: -8 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: idx * 0.03 }}
+                                    className="flex items-center gap-4 px-6 py-4 hover:bg-indigo-50/40 transition-colors group"
+                                  >
+                                    <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                                      <Tags className="w-5 h-5 text-indigo-500" />
+                                    </div>
+
+                                    <span className="flex-1 text-base font-semibold text-gray-800">
+                                      {tag.name}
+                                    </span>
+
+                                    <button
+                                      onClick={() => handleDeleteTag(tag.id)}
+                                      className="opacity-0 group-hover:opacity-100 w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-all"
+                                    >
+                                      <Trash2 className="w-4 h-4 text-red-400" />
+                                    </button>
+                                  </motion.li>
+                                ))}
+                              </ul>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {isPoliciesModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] bg-[#f2f4f8] flex flex-col overflow-hidden"
+            >
+              {/* Header */}
+              <div className="flex-shrink-0 bg-white border-b border-gray-100 px-10 h-16 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setIsPoliciesModalOpen(false)}
+                    className="w-9 h-9 rounded-xl bg-gray-50 hover:bg-gray-100 flex items-center justify-center transition-colors"
+                  >
+                    <ArrowLeft className="w-5 h-5 text-gray-600" />
+                  </button>
+                  <h1 className="text-xl font-bold text-gray-900">Content Policies & Guidelines</h1>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsPoliciesModalOpen(false)}
+                    className="px-5 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold text-sm rounded-xl transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSavePolicies}
+                    disabled={isSavingPolicies}
+                    className="px-6 py-2 bg-rose-500 hover:bg-rose-600 disabled:opacity-50 text-white font-bold text-sm rounded-xl transition-all shadow-md shadow-rose-200 flex items-center gap-2"
+                  >
+                    {isSavingPolicies ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Policies'
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-10 max-w-4xl mx-auto w-full space-y-8">
+                {/* Intro Card */}
+                <div className="bg-rose-50/50 border border-rose-100 p-6 rounded-2xl flex gap-4 items-start">
+                  <ShieldAlert className="w-6 h-6 text-rose-500 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-sm font-bold text-rose-900 mb-1">Global Platform Guidelines</h3>
+                    <p className="text-xs text-rose-700 font-medium leading-relaxed">
+                      Updating these policy definitions will modify the dynamic legal texts presented to trainers during onboarding and students inside course catalogs. Ensure language is clear, descriptive, and complies with educational service policies.
+                    </p>
                   </div>
                 </div>
 
-                {/* RIGHT — Category list */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                  {/* Toolbar */}
-                  <div className="flex-shrink-0 px-10 py-5 flex items-center justify-between">
-                    <h3 className="text-base font-bold text-gray-800">Available Categories</h3>
-                    <div className="relative">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-                      <input
-                        type="text"
-                        placeholder="Search..."
-                        value={categorySearch}
-                        onChange={e => setCategorySearch(e.target.value)}
-                        className="pl-11 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 placeholder:text-gray-300 outline-none focus:border-orange-400 transition-all w-52 shadow-sm"
-                      />
-                    </div>
+                {/* Form fields */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 space-y-6">
+                  {/* Terms of Use */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-800">Terms & Conditions of Service</label>
+                    <p className="text-xs text-slate-400 font-medium">Standard terms, usage limits, and course distribution conditions.</p>
+                    <textarea
+                      value={policiesInput.terms}
+                      onChange={e => setPoliciesInput({ ...policiesInput, terms: e.target.value })}
+                      placeholder="Enter terms and conditions text..."
+                      rows={6}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-medium text-slate-800 placeholder:text-slate-300 outline-none focus:border-rose-400 focus:bg-white transition-all resize-y"
+                    />
                   </div>
 
-                  {/* List */}
-                  <div className="flex-1 overflow-y-auto px-10 pb-10">
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                      {(() => {
-                        // Merge: categories from bharatam_categories collection + unique ones from courses
-                        const fromFirestore = categoriesList.map(cat => ({
-                          id: cat.id,
-                          name: cat.name || '',
-                          fromFirestore: true,
-                        }));
+                  {/* Privacy Policy */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-800">Privacy Policy</label>
+                    <p className="text-xs text-slate-400 font-medium">User privacy statement, cookies usage, data handling, and telemetry.</p>
+                    <textarea
+                      value={policiesInput.privacy}
+                      onChange={e => setPoliciesInput({ ...policiesInput, privacy: e.target.value })}
+                      placeholder="Enter privacy policy text..."
+                      rows={6}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-medium text-slate-800 placeholder:text-slate-300 outline-none focus:border-rose-400 focus:bg-white transition-all resize-y"
+                    />
+                  </div>
 
-                        const firestoreNames = new Set(fromFirestore.map(c => c.name.trim().toLowerCase()));
-
-                        // Extract unique category names from coursesList not already in Firestore
-                        const fromCourses = [];
-                        const seen = new Set(firestoreNames);
-                        coursesList.forEach(course => {
-                          const name = (course.subject || course.category || '').trim();
-                          if (name && !seen.has(name.toLowerCase())) {
-                            seen.add(name.toLowerCase());
-                            fromCourses.push({ id: `course-cat-${name}`, name, fromFirestore: false });
-                          }
-                        });
-
-                        const allCategories = [...fromFirestore, ...fromCourses].sort((a, b) =>
-                          a.name.localeCompare(b.name)
-                        );
-
-                        const filtered = allCategories.filter(cat =>
-                          !categorySearch ||
-                          cat.name.toLowerCase().includes(categorySearch.toLowerCase())
-                        );
-
-                        if (filtered.length === 0) {
-                          return (
-                            <div className="py-20 flex flex-col items-center gap-3">
-                              <div className="w-14 h-14 bg-orange-50 rounded-2xl flex items-center justify-center">
-                                <Tags className="w-6 h-6 text-orange-300" />
-                              </div>
-                              <p className="text-base font-semibold text-gray-400">
-                                {categorySearch ? 'No matching categories' : 'No categories yet'}
-                              </p>
-                              <p className="text-sm text-gray-300">
-                                {categorySearch ? 'Try a different search term' : 'Add your first category on the left'}
-                              </p>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <ul className="divide-y divide-gray-50">
-                            {filtered.map((cat, idx) => (
-                              <motion.li
-                                key={cat.id}
-                                initial={{ opacity: 0, x: -8 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: idx * 0.03 }}
-                                className="flex items-center gap-4 px-6 py-4 hover:bg-orange-50/40 transition-colors group"
-                              >
-                                {/* Orange circle icon */}
-                                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                                  <Tags className="w-5 h-5 text-orange-500" />
-                                </div>
-
-                                {/* Name */}
-                                <span className="flex-1 text-base font-semibold text-gray-800">
-                                  {cat.name}
-                                </span>
-
-                                {/* Delete — only for Firestore-saved categories, visible on hover */}
-                                {cat.fromFirestore && (
-                                  <button
-                                    onClick={() => handleDeleteCategory(cat.id)}
-                                    className="opacity-0 group-hover:opacity-100 w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 flex items-center justify-center transition-all"
-                                  >
-                                    <Trash2 className="w-4 h-4 text-red-400" />
-                                  </button>
-                                )}
-                              </motion.li>
-                            ))}
-                          </ul>
-                        );
-                      })()}
-                    </div>
+                  {/* Trainer Guidelines */}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-bold text-slate-800">Trainer & Curriculum Guidelines</label>
+                    <p className="text-xs text-slate-400 font-medium">Core rules, verification requirements, and code of conduct for content creators.</p>
+                    <textarea
+                      value={policiesInput.trainerGuidelines}
+                      onChange={e => setPoliciesInput({ ...policiesInput, trainerGuidelines: e.target.value })}
+                      placeholder="Enter trainer guidelines text..."
+                      rows={6}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-sm font-medium text-slate-800 placeholder:text-slate-300 outline-none focus:border-rose-400 focus:bg-white transition-all resize-y"
+                    />
                   </div>
                 </div>
               </div>
