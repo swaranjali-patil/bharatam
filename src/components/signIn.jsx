@@ -108,6 +108,12 @@ export default function SignIn({ onSwitch, onLoginSuccess }) {
 
     setIsLoading(true);
 
+    if (!auth || !db) {
+      alert("Firebase is not initialized. Please ensure that all Firebase keys (VITE_FIREBASE_API_KEY, VITE_FIREBASE_PROJECT_ID, etc.) are correctly set in your Vercel Environment Variables.");
+      setIsLoading(false);
+      return;
+    }
+
     if (isAdminMode) {
       try {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
