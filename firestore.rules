@@ -1,0 +1,163 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is super admin
+    function isSuperAdmin() {
+      return isAuthenticated() && 
+             (get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'superadmin' ||
+              get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'super_admin' ||
+              get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.isSuperAdmin == true);
+    }
+    
+    // Helper function to check if user is trainer/staff
+    function isTrainer() {
+      return isAuthenticated() && 
+             (get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'trainer' ||
+              get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'staff');
+    }
+    
+    // Users collection
+    match /bharatam_users/{userId} {
+      // Allow users to read their own data
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Allow super admin to read all users
+      allow read: if isSuperAdmin();
+      // Allow users to create and update their own profile
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      // Allow super admin to update any user
+      allow update: if isSuperAdmin();
+    }
+    
+    // Courses collection
+    match /bharatam_courses/{courseId} {
+      // Allow anyone to read approved courses
+      allow read: if resource.data.status == 'Approved' || resource.data.approvalStatus == 'approved';
+      // Allow trainers to read their own courses (any status)
+      allow read: if isAuthenticated() && resource.data.trainerId == request.auth.uid;
+      // Allow super admin to read all courses
+      allow read: if isSuperAdmin();
+      
+      // Allow trainers to create courses
+      allow create: if isAuthenticated() && 
+                       (isTrainer() || isSuperAdmin()) &&
+                       request.resource.data.trainerId == request.auth.uid;
+      
+      // Allow trainers to update their own courses
+      allow update: if isAuthenticated() && 
+                       resource.data.trainerId == request.auth.uid;
+      
+      // Allow super admin to update any course
+      allow update: if isSuperAdmin();
+      
+      // Allow trainers to delete their own courses
+      allow delete: if isAuthenticated() && resource.data.trainerId == request.auth.uid;
+      
+      // Allow super admin to delete any course
+      allow delete: if isSuperAdmin();
+      
+      // Videos subcollection
+      match /videos/{videoId} {
+        allow read: if true; // Same as parent course permissions
+        allow write: if isAuthenticated() && 
+                        (get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                         isSuperAdmin());
+      }
+      
+      // PDFs subcollection
+      match /pdfs/{pdfId} {
+        allow read: if true; // Same as parent course permissions
+        allow write: if isAuthenticated() && 
+                        (get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                         isSuperAdmin());
+      }
+      
+      // PDF subcollection (alternate spelling)
+      match /pdf/{pdfId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && 
+                        (get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                         isSuperAdmin());
+      }
+      
+      // Images subcollection
+      match /images/{imageId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && 
+                        (get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                         isSuperAdmin());
+      }
+    }
+    
+    // Categories collection
+    match /bharatam_categories/{categoryId} {
+      allow read: if true; // Anyone can read categories
+      allow write: if isSuperAdmin(); // Only super admin can manage categories
+    }
+    
+    // Advertisements collection
+    match /advertisements/{adId} {
+      allow read: if true; // Anyone can read ads
+      allow write: if isSuperAdmin(); // Only super admin can manage ads
+    }
+    
+    // Orders/Payments/Enrollments collections
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isSuperAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isSuperAdmin();
+    }
+    
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isSuperAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isSuperAdmin();
+    }
+    
+    match /enrollments/{enrollmentId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isSuperAdmin());
+      allow create: if isAuthenticated();
+      allow update: if isSuperAdmin();
+    }
+    
+    match /payouts/{payoutId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.trainerId == request.auth.uid || isSuperAdmin());
+      allow create: if isAuthenticated() && isTrainer();
+      allow update: if isSuperAdmin();
+    }
+    
+    // FAQs collection
+    match /bharatam_faqs/{faqId} {
+      allow read: if true; // Anyone can read FAQs
+      allow write: if isSuperAdmin(); // Only super admin can manage FAQs
+    }
+    
+    // Support queries collection
+    match /bharatam_support_queries/{queryId} {
+      allow read: if true; // Anyone can read support queries (needed for status tracking)
+      allow create: if true; // Anyone can submit a query
+      allow update: if isSuperAdmin() || request.resource.data.status == 'solved';
+      allow delete: if isSuperAdmin();
+    }
+    
+    // Default deny for all other collections
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

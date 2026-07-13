@@ -1,0 +1,258 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ─── Helper Functions ────────────────────────────────────────────────────
+    
+    // Check if the requesting user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Check if the requesting user owns this document (by UID)
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Check if the requesting user is an admin
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Check if the requesting user is a super admin
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        (get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'superadmin' ||
+         get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'super_admin' ||
+         get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.isSuperAdmin == true);
+    }
+    
+    // ✅ FIXED: Check if the requesting user is a trainer (supports multiple role values)
+    function isTrainer() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role in 
+        ['trainer', 'Trainer', 'Instructor', 'instructor', 'staff', 'Staff'];
+    }
+    
+    // Check if the requesting user is the trainer for this course
+    function isCourseOwner(courseData) {
+      return isSignedIn() && courseData.trainerId == request.auth.uid;
+    }
+    
+    // ─── Unified Users Collection ────────────────────────────────────────────
+    
+    match /bharatam_users/{userId} {
+      // Anyone can read user profiles (needed for trainer name resolution)
+      allow read: if isSignedIn();
+      // Users can create their own profile (during registration)
+      allow create: if isOwner(userId);
+      // Users can update their own profile; admins can update anyone
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      // Only admins can delete users
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Legacy Learners Collection ──────────────────────────────────────────
+    
+    match /learners/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Trainers Collections ────────────────────────────────────────────────
+    
+    match /trainers/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /bharatam_trainers/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Courses ─────────────────────────────────────────────────────────────
+    
+    match /bharatam_courses/{courseId} {
+      // Anyone signed in can read approved courses;
+      // admins and the course's trainer can read all (including pending)
+      allow read: if isSignedIn();
+      
+      // ✅ FIXED: Allow trainers, super admins, and regular admins to create courses
+      allow create: if isTrainer() || isAdmin() || isSuperAdmin();
+      
+      // Course owner (trainer) or admin can update
+      allow update: if (isSignedIn() && resource.data.trainerId == request.auth.uid) || 
+                       isAdmin() || isSuperAdmin();
+      
+      // Only admin can delete courses
+      allow delete: if isAdmin() || isSuperAdmin();
+      
+      // Subcollections: videos, pdfs, and images
+      match /videos/{videoId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow update: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow delete: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+      }
+      
+      match /pdfs/{pdfId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow update: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow delete: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+      }
+      
+      match /pdf/{pdfId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow update: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow delete: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+      }
+      
+      match /images/{imageId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow update: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow delete: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+      }
+      
+      match /modules/{moduleId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow update: if (isSignedIn() && 
+                          get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                         isAdmin() || isSuperAdmin();
+        allow delete: if isAdmin() || isSuperAdmin();
+      }
+    }
+    
+    // ─── Purchases ───────────────────────────────────────────────────────────
+    
+    match /purchases/{purchaseId} {
+      // Users can read their own purchases; trainers read their sales; admins read all
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid ||
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      // Only the app (authenticated users) can create a purchase record
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      // Only admins can update/delete purchase records
+      allow update, delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Student Progress ────────────────────────────────────────────────────
+    
+    match /student_progress/{userId} {
+      allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow write: if isOwner(userId);
+      
+      match /courses/{courseId} {
+        allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
+        allow write: if isOwner(userId);
+      }
+    }
+    
+    // ─── Categories ──────────────────────────────────────────────────────────
+    
+    match /bharatam_categories/{categoryId} {
+      // Anyone signed in can read categories
+      allow read: if isSignedIn();
+      // Only admins can manage categories
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Advertisements ──────────────────────────────────────────────────────
+    
+    match /advertisements/{adId} {
+      allow read: if true; // Public
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Orders/Payments/Enrollments ─────────────────────────────────────────
+    
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /enrollments/{enrollmentId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /payouts/{payoutId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.trainerId == request.auth.uid || isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn() && isTrainer();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Subscriptions ───────────────────────────────────────────────────────
+    
+    match /subscribe/{subscriptionId} {
+      allow read: if isSignedIn();
+      // Users can only create/delete their own subscriptions
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Users (legacy, used in course_plan_details_screen) ─────────────────
+    
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin() || isSuperAdmin();
+    }
+  }
+}

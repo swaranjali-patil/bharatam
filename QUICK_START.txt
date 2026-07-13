@@ -1,0 +1,63 @@
+════════════════════════════════════════════════════════════════════
+                    VIDEO FIELDS CLEANUP - QUICK START
+════════════════════════════════════════════════════════════════════
+
+📋 WHAT IT DOES
+───────────────
+Removes all fields from video documents EXCEPT these 15:
+  1. approvalStatus      6. durationMinutes    11. storageUrl
+  2. approvedAt          7. fileName           12. thumbnailUrl
+  3. bunnyVideoId        8. isFree             13. title
+  4. contentType         9. order              14. updatedAt
+  5. createdAt          10. status             15. views
+
+🚀 HOW TO RUN
+─────────────
+Method 1 (Easy):
+  Double-click: run-video-cleanup.bat
+
+Method 2 (Manual):
+  1. Open Command Prompt
+  2. cd c:\Users\Administrator\Desktop\E-learning\elearning-app\Bhartam
+  3. node cleanup-video-fields.js
+
+⏱️ TIME REQUIRED
+────────────────
+  • Reading docs: 5-10 minutes
+  • Running script: 2-5 minutes
+  • Testing: 5-10 minutes
+  Total: ~20 minutes
+
+⚠️ BEFORE YOU RUN
+─────────────────
+  ☐ Backup your Firestore database
+  ☐ Read README_VIDEO_CLEANUP.md
+  ☐ Ensure npm packages are installed (npm install)
+  ☐ Close this file and run the script!
+
+✅ AFTER YOU RUN
+────────────────
+Test these features work:
+  ☐ View videos in courses
+  ☐ Play videos
+  ☐ Upload new video
+  ☐ Approve/reject videos
+  ☐ Edit video details
+
+📚 DOCUMENTATION
+────────────────
+  📖 README_VIDEO_CLEANUP.md ................ Start here
+  📝 VIDEO_FIELDS_CHANGES_SUMMARY.md ........ What changed
+  🔧 VIDEO_FIELDS_CLEANUP.md ................ Cleanup guide
+  💻 VIDEO_FIELDS_REFERENCE.md .............. Developer reference
+  ✅ COMPLETED_WORK_SUMMARY.md .............. Work summary
+
+🎯 THE COMMAND
+──────────────
+  node cleanup-video-fields.js
+
+That's it! ✨
+
+════════════════════════════════════════════════════════════════════
+Need help? Read README_VIDEO_CLEANUP.md for full instructions!
+════════════════════════════════════════════════════════════════════

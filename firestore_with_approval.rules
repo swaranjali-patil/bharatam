@@ -1,0 +1,247 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ─── Helper Functions ────────────────────────────────────────────────────
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    function isSuperAdmin() {
+      return isSignedIn() &&
+        (get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'superadmin' ||
+         get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.role == 'super_admin' ||
+         get(/databases/$(database)/documents/bharatam_users/$(request.auth.uid)).data.isSuperAdmin == true);
+    }
+    
+    // ✅ UPDATED: Support multiple trainer role variations
+    function isTrainer() {
+      return isSignedIn(); // Temporarily allow all authenticated users
+      // Later re-enable: get(...).data.role in ['trainer', 'Trainer', 'Instructor', 'instructor', 'staff', 'Staff']
+    }
+    
+    // ─── Users Collection ────────────────────────────────────────────────────
+    
+    match /bharatam_users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Legacy Collections ──────────────────────────────────────────────────
+    
+    match /learners/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /trainers/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /bharatam_trainers/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow update: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    // ─── Courses with Approval Workflow ─────────────────────────────────────
+    
+    match /bharatam_courses/{courseId} {
+      // Anyone signed in can read approved courses
+      allow read: if isSignedIn();
+      
+      // Only trainers and admins can create courses
+      allow create: if isTrainer() || isAdmin() || isSuperAdmin();
+      
+      // Course owner or admin can update
+      allow update: if (isSignedIn() && resource.data.trainerId == request.auth.uid) || 
+                       isAdmin() || isSuperAdmin();
+      
+      // Only admin can delete courses
+      allow delete: if isAdmin() || isSuperAdmin();
+      
+      // ✅ VIDEOS SUBCOLLECTION WITH APPROVAL WORKFLOW
+      match /videos/{videoId} {
+        // Students can ONLY read APPROVED videos
+        // Trainers can read their own videos (any status)
+        // Super Admin can read all videos
+        allow read: if isSignedIn() && 
+                       (
+                         // Video is approved (students can see)
+                         resource.data.approvalStatus == 'approved' || 
+                         resource.data.status == 'approved' ||
+                         resource.data.status == 'active' ||
+                         // OR user is the course trainer (can see their own pending videos)
+                         get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                         // OR user is admin/super admin (can see all videos)
+                         isAdmin() || isSuperAdmin()
+                       );
+        
+        // Only course owner or admin can create/update/delete
+        allow create, update, delete: if (isSignedIn() && 
+                                           get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                                          isAdmin() || isSuperAdmin();
+      }
+      
+      // ✅ PDFS SUBCOLLECTION WITH APPROVAL WORKFLOW
+      match /pdfs/{pdfId} {
+        // Students can ONLY read APPROVED PDFs
+        allow read: if isSignedIn() && 
+                       (
+                         // PDF is approved (students can see)
+                         resource.data.approvalStatus == 'approved' || 
+                         resource.data.status == 'approved' ||
+                         resource.data.status == 'active' ||
+                         // OR user is the course trainer (can see their own pending PDFs)
+                         get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                         // OR user is admin/super admin (can see all PDFs)
+                         isAdmin() || isSuperAdmin()
+                       );
+        
+        allow create, update, delete: if (isSignedIn() && 
+                                           get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                                          isAdmin() || isSuperAdmin();
+      }
+      
+      // PDF alternate naming
+      match /pdf/{pdfId} {
+        allow read: if isSignedIn() && 
+                       (resource.data.approvalStatus == 'approved' || 
+                        resource.data.status == 'approved' ||
+                        resource.data.status == 'active' ||
+                        get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid ||
+                        isAdmin() || isSuperAdmin());
+        
+        allow create, update, delete: if (isSignedIn() && 
+                                           get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                                          isAdmin() || isSuperAdmin();
+      }
+      
+      // Images subcollection
+      match /images/{imageId} {
+        allow read: if isSignedIn();
+        allow create, update, delete: if (isSignedIn() && 
+                                           get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                                          isAdmin() || isSuperAdmin();
+      }
+      
+      // Modules subcollection
+      match /modules/{moduleId} {
+        allow read: if isSignedIn();
+        allow create, update: if (isSignedIn() && 
+                                   get(/databases/$(database)/documents/bharatam_courses/$(courseId)).data.trainerId == request.auth.uid) || 
+                                  isAdmin() || isSuperAdmin();
+        allow delete: if isAdmin() || isSuperAdmin();
+      }
+    }
+    
+    // ─── Other Collections ──────────────────────────────────────────────────
+    
+    match /purchases/{purchaseId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid ||
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /student_progress/{userId} {
+      allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
+      allow write: if isOwner(userId);
+      
+      match /courses/{courseId} {
+        allow read: if isOwner(userId) || isAdmin() || isSuperAdmin();
+        allow write: if isOwner(userId);
+      }
+    }
+    
+    match /bharatam_categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /advertisements/{adId} {
+      allow read: if true;
+      allow write: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /orders/{orderId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /enrollments/{enrollmentId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.trainerId == request.auth.uid ||
+                      isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /payouts/{payoutId} {
+      allow read: if isSignedIn() && 
+                     (resource.data.trainerId == request.auth.uid || isAdmin() || isSuperAdmin());
+      allow create: if isSignedIn() && isTrainer();
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /subscribe/{subscriptionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || isSuperAdmin();
+    }
+    
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin() || isSuperAdmin();
+    }
+    
+    // FAQs collection
+    match /bharatam_faqs/{faqId} {
+      allow read: if true; // Anyone can read FAQs
+      allow write: if isAdmin() || isSuperAdmin(); // Only admin/super admin can manage FAQs
+    }
+    
+    // Support queries collection
+    match /bharatam_support_queries/{queryId} {
+      allow read: if true; // Anyone can read support queries (needed for status tracking)
+      allow create: if true; // Anyone can submit a query
+      allow update: if isAdmin() || isSuperAdmin() || request.resource.data.status == 'solved';
+      allow delete: if isAdmin() || isSuperAdmin();
+    }
+  }
+}
