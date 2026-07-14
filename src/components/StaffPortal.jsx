@@ -3382,287 +3382,300 @@ export default function StaffPortal({ user, onLogout }) {
             </div>
 
             {/* Form Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 max-w-2xl mx-auto w-full">
-              {/* Course Title */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Course Title</label>
-                <input
-                  type="text"
-                  value={newCourseForm.title}
-                  onChange={(e) => setNewCourseForm({ ...newCourseForm, title: e.target.value })}
-                  className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400"
-                  placeholder="Enter course title"
-                />
-              </div>
+            <div className="flex-1 overflow-y-auto px-6 py-8 bg-[#f8fafc]">
+              <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                
+                {/* Left Column — Course Metadata & Pricing */}
+                <div className="space-y-6">
+                  {/* Course Title */}
+                  <div className="space-y-2 bg-white rounded-3xl p-6 border border-slate-150 shadow-sm">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Course Title</label>
+                    <input
+                      type="text"
+                      value={newCourseForm.title}
+                      onChange={(e) => setNewCourseForm({ ...newCourseForm, title: e.target.value })}
+                      className="w-full bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-300 shadow-sm"
+                      placeholder="Enter course title"
+                    />
+                  </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Description</label>
-                <textarea
-                  value={newCourseForm.description}
-                  onChange={(e) => setNewCourseForm({ ...newCourseForm, description: e.target.value })}
-                  rows={4}
-                  className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400 resize-none"
-                  placeholder="Enter course description"
-                />
-              </div>
+                  {/* Description */}
+                  <div className="space-y-2 bg-white rounded-3xl p-6 border border-slate-150 shadow-sm">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Description</label>
+                    <textarea
+                      value={newCourseForm.description}
+                      onChange={(e) => setNewCourseForm({ ...newCourseForm, description: e.target.value })}
+                      rows={4}
+                      className="w-full bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-350 resize-none shadow-sm"
+                      placeholder="Enter course description"
+                    />
+                  </div>
 
-              {/* Category */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Category</label>
-                <div className="relative">
-                  <select
-                    value={newCourseForm.category}
-                    onChange={(e) => setNewCourseForm({ ...newCourseForm, category: e.target.value })}
-                    className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium appearance-none cursor-pointer"
-                  >
-                    <option value="" disabled>Select Category</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-
-              {/* Price */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">One Time (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newCourseForm.price}
-                  onChange={(e) => setNewCourseForm({ ...newCourseForm, price: e.target.value })}
-                  className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400"
-                  placeholder="0 for Free"
-                />
-              </div>
-
-              {/* Lifetime Price */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Lifetime Access Price (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newCourseForm.lifetimePrice}
-                  onChange={(e) => setNewCourseForm({ ...newCourseForm, lifetimePrice: e.target.value })}
-                  className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400"
-                  placeholder="Leave empty to use regular price"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  One-time payment for lifetime access to the course
-                </p>
-              </div>
-
-              {/* Limited Time Price */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Limited Time Offer Price (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  value={newCourseForm.limitedTimePrice}
-                  onChange={(e) => setNewCourseForm({ ...newCourseForm, limitedTimePrice: e.target.value })}
-                  className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400"
-                  placeholder="Leave empty to use regular price"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Special discounted price for limited time offers
-                </p>
-              </div>
-
-              {/* Thumbnail */}
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700">Thumbnail</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  id="thumbnail-upload"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        setNewCourseForm({ ...newCourseForm, thumbnail: reader.result, thumbnailFile: file });
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-                <label
-                  htmlFor="thumbnail-upload"
-                  className="w-full bg-gray-50 border-2 border-dashed border-orange-300 rounded-2xl py-10 flex flex-col items-center justify-center cursor-pointer hover:bg-orange-50/30 transition-all group"
-                >
-                  {newCourseForm.thumbnail ? (
-                    <img src={newCourseForm.thumbnail} alt="Thumbnail" className="w-full max-h-40 object-cover rounded-xl px-4" />
-                  ) : (
-                    <>
-                      <Upload className="w-10 h-10 text-orange-400 group-hover:scale-110 transition-transform" />
-                      <p className="text-orange-400 font-bold text-sm mt-3">Tap to upload image</p>
-                    </>
-                  )}
-                </label>
-              </div>
-
-              {/* Assessment Questions Accordion Card */}
-              <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
-                {/* Header Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsAssessmentSectionOpen(!isAssessmentSectionOpen)}
-                  className="w-full flex items-center justify-between p-6 hover:bg-gray-50/50 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-500">
-                      <span className="text-xl">📋</span>
-                    </div>
-                    <div>
-                      <h4 className="text-base font-bold text-gray-900">Assessment Questions</h4>
-                      <p className="text-xs text-gray-400 font-medium mt-0.5">
-                        {newCourseForm.assessment?.questions?.length || 0} question(s) added
-                      </p>
+                  {/* Category */}
+                  <div className="space-y-2 bg-white rounded-3xl p-6 border border-slate-150 shadow-sm">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Category</label>
+                    <div className="relative">
+                      <select
+                        value={newCourseForm.category}
+                        onChange={(e) => setNewCourseForm({ ...newCourseForm, category: e.target.value })}
+                        className="w-full bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold appearance-none cursor-pointer shadow-sm animate-fade-in"
+                      >
+                        <option value="" disabled>Select Category</option>
+                        {categories.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                     </div>
                   </div>
-                  <ChevronDown 
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${
-                      isAssessmentSectionOpen ? 'rotate-180' : ''
-                    }`} 
-                  />
-                </button>
 
-                {/* Collapsible Content */}
-                <AnimatePresence initial={false}>
-                  {isAssessmentSectionOpen && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="border-t border-gray-50 px-6 pb-6 pt-4 space-y-6 overflow-hidden"
+                  {/* Pricing Mini-Grid */}
+                  <div className="bg-white rounded-3xl p-6 border border-slate-150 shadow-sm space-y-4">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">Pricing Model</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* One Time */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">One Time (₹)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={newCourseForm.price}
+                          onChange={(e) => setNewCourseForm({ ...newCourseForm, price: e.target.value })}
+                          className="w-full bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-300 text-sm shadow-sm"
+                          placeholder="0 for Free"
+                        />
+                      </div>
+                      
+                      {/* Lifetime Price */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Lifetime (₹)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={newCourseForm.lifetimePrice}
+                          onChange={(e) => setNewCourseForm({ ...newCourseForm, lifetimePrice: e.target.value })}
+                          className="w-full bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-300 text-sm shadow-sm"
+                          placeholder="Regular if empty"
+                        />
+                      </div>
+
+                      {/* Limited Time Price */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Offer Price (₹)</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={newCourseForm.limitedTimePrice}
+                          onChange={(e) => setNewCourseForm({ ...newCourseForm, limitedTimePrice: e.target.value })}
+                          className="w-full bg-slate-50 px-4 py-3 rounded-xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-300 text-sm shadow-sm"
+                          placeholder="Regular if empty"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column — Thumbnail & Assessment */}
+                <div className="space-y-6">
+                  {/* Thumbnail */}
+                  <div className="space-y-2 bg-white rounded-3xl p-6 border border-slate-150 shadow-sm">
+                    <label className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-2">Thumbnail Banner</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      id="thumbnail-upload"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setNewCourseForm({ ...newCourseForm, thumbnail: reader.result, thumbnailFile: file });
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="thumbnail-upload"
+                      className="w-full bg-slate-50 border-2 border-dashed border-orange-200 hover:border-orange-355 rounded-2xl py-12 flex flex-col items-center justify-center cursor-pointer hover:bg-orange-50/10 transition-all group shadow-sm"
                     >
-                      {/* Passing % and Time Limit Row */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-gray-700">Passing %</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={newCourseForm.assessment?.passingPercentage || 70}
-                            onChange={(e) => handleAssessmentChange(curr => ({
-                              ...curr,
-                              passingPercentage: Number(e.target.value)
-                            }))}
-                            className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium"
-                            placeholder="70"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-bold text-gray-700">Time Limit (min)</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={newCourseForm.assessment?.timeLimit || 0}
-                            onChange={(e) => handleAssessmentChange(curr => ({
-                              ...curr,
-                              timeLimit: Number(e.target.value)
-                            }))}
-                            className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium"
-                            placeholder="0 for No Limit"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Question List */}
-                      <div className="space-y-6">
-                        {newCourseForm.assessment?.questions?.map((q, qIdx) => (
-                          <div 
-                            key={qIdx} 
-                            className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.01)] space-y-4 relative"
-                          >
-                            {/* Question Header */}
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-sm">
-                                  {qIdx + 1}
-                                </span>
-                                <span className="font-bold text-gray-800">Question {qIdx + 1}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveQuestion(qIdx)}
-                                className="w-8 h-8 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-
-                            {/* Question text textarea */}
-                            <textarea
-                              rows={3}
-                              value={q.questionText}
-                              onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
-                              className="w-full bg-gray-50 px-5 py-4 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400 resize-none"
-                              placeholder="Enter the question..."
-                            />
-
-                            {/* Options A, B, C, D */}
-                            <div className="space-y-3">
-                              {['A', 'B', 'C', 'D'].map((letter, optIdx) => {
-                                const isCorrect = q.correctOption === letter;
-                                return (
-                                  <div key={letter} className="flex items-center gap-3">
-                                    {/* Circle Checkmark Button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCorrectOptionChange(qIdx, letter)}
-                                      className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 shrink-0 ${
-                                        isCorrect 
-                                          ? 'bg-emerald-500 border-emerald-500 text-white' 
-                                          : 'bg-white border-gray-200 hover:border-gray-300 text-gray-400'
-                                      }`}
-                                    >
-                                      {isCorrect ? (
-                                        <CheckCircle className="w-5 h-5 text-white" />
-                                      ) : (
-                                        <span className="w-3 h-3 rounded-full border border-gray-300" />
-                                      )}
-                                    </button>
-
-                                    <span className="font-bold text-gray-500 text-sm">{letter}</span>
-
-                                    {/* Option Text Input */}
-                                    <input
-                                      type="text"
-                                      value={q.options[optIdx]}
-                                      onChange={(e) => handleOptionTextChange(qIdx, optIdx, e.target.value)}
-                                      className="flex-1 bg-gray-50 px-5 py-3 rounded-2xl border border-gray-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-gray-900 font-medium placeholder:text-gray-400"
-                                      placeholder={`Option ${letter}`}
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            
-                            <p className="text-[11px] text-gray-400 font-medium italic">
-                              Tap the circle to mark the correct answer
-                            </p>
+                      {newCourseForm.thumbnail ? (
+                        <img src={newCourseForm.thumbnail} alt="Thumbnail" className="w-full max-h-48 object-cover rounded-xl px-4 animate-fade-in" />
+                      ) : (
+                        <>
+                          <div className="w-12 h-12 bg-white border border-slate-150 rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform mb-3">
+                            <Upload className="w-5 h-5 text-orange-500" />
                           </div>
-                        ))}
-                      </div>
+                          <p className="text-orange-500 font-bold text-sm">Tap to upload banner</p>
+                          <p className="text-[10px] font-black text-slate-405 uppercase tracking-wider mt-1.5">PNG, JPG, WebP (16:9 recommended)</p>
+                        </>
+                      )}
+                    </label>
+                  </div>
 
-                      {/* Add Question Button */}
-                      <button
-                        type="button"
-                        onClick={handleAddQuestion}
-                        className="w-full py-4 border-2 border-dashed border-orange-200 hover:border-orange-400 rounded-2xl flex items-center justify-center gap-2 text-orange-500 font-bold hover:bg-orange-50/20 transition-all active:scale-95"
-                      >
-                        <Plus className="w-5 h-5" />
-                        Add Question
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                  {/* Assessment Questions Accordion Card */}
+                  <div className="bg-white rounded-3xl border border-slate-150 overflow-hidden shadow-sm">
+                    {/* Header Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setIsAssessmentSectionOpen(!isAssessmentSectionOpen)}
+                      className="w-full flex items-center justify-between p-6 hover:bg-slate-50/50 transition-colors text-left"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-500">
+                          <span className="text-xl">📋</span>
+                        </div>
+                        <div>
+                          <h4 className="text-base font-bold text-slate-800">Assessment Questions</h4>
+                          <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                            {newCourseForm.assessment?.questions?.length || 0} question(s) added
+                          </p>
+                        </div>
+                      </div>
+                      <ChevronDown 
+                        className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${
+                          isAssessmentSectionOpen ? 'rotate-180' : ''
+                        }`} 
+                      />
+                    </button>
+
+                    {/* Collapsible Content */}
+                    <AnimatePresence initial={false}>
+                      {isAssessmentSectionOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="border-t border-slate-100 px-6 pb-6 pt-4 space-y-6 overflow-hidden"
+                        >
+                          {/* Passing % and Time Limit Row */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-550">Passing %</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                value={newCourseForm.assessment?.passingPercentage || 70}
+                                onChange={(e) => handleAssessmentChange(curr => ({
+                                  ...curr,
+                                  passingPercentage: Number(e.target.value)
+                                }))}
+                                className="w-full bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold"
+                                placeholder="70"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-slate-550">Time Limit (min)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                value={newCourseForm.assessment?.timeLimit || 0}
+                                onChange={(e) => handleAssessmentChange(curr => ({
+                                  ...curr,
+                                  timeLimit: Number(e.target.value)
+                                }))}
+                                className="w-full bg-slate-50 px-5 py-4 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold"
+                                placeholder="0 for No Limit"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Question List */}
+                          <div className="space-y-6">
+                            {newCourseForm.assessment?.questions?.map((q, qIdx) => (
+                              <div 
+                                key={qIdx} 
+                                className="bg-slate-50 rounded-3xl p-6 border border-slate-200 space-y-4 relative"
+                              >
+                                {/* Question Header */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <span className="w-8 h-8 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center font-bold text-sm">
+                                      {qIdx + 1}
+                                    </span>
+                                    <span className="font-bold text-slate-700">Question {qIdx + 1}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveQuestion(qIdx)}
+                                    className="w-8 h-8 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center hover:bg-rose-100 hover:text-rose-600 transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+
+                                {/* Question text textarea */}
+                                <textarea
+                                  rows={3}
+                                  value={q.questionText}
+                                  onChange={(e) => handleQuestionTextChange(qIdx, e.target.value)}
+                                  className="w-full bg-white px-5 py-4 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-350 resize-none shadow-sm"
+                                  placeholder="Enter the question..."
+                                />
+
+                                {/* Options A, B, C, D */}
+                                <div className="space-y-3">
+                                  {['A', 'B', 'C', 'D'].map((letter, optIdx) => {
+                                    const isCorrect = q.correctOption === letter;
+                                    return (
+                                      <div key={letter} className="flex items-center gap-3">
+                                        {/* Circle Checkmark Button */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCorrectOptionChange(qIdx, letter)}
+                                          className={`w-10 h-10 rounded-full flex items-center justify-center transition-all border-2 shrink-0 ${
+                                            isCorrect 
+                                              ? 'bg-emerald-500 border-emerald-500 text-white' 
+                                              : 'bg-white border-slate-200 hover:border-slate-300 text-slate-400'
+                                          }`}
+                                        >
+                                          {isCorrect ? (
+                                            <CheckCircle className="w-5 h-5 text-white" />
+                                          ) : (
+                                            <span className="w-3 h-3 rounded-full border border-slate-300" />
+                                          )}
+                                        </button>
+
+                                        <span className="font-bold text-slate-500 text-sm">{letter}</span>
+
+                                        {/* Option Text Input */}
+                                        <input
+                                          type="text"
+                                          value={q.options[optIdx]}
+                                          onChange={(e) => handleOptionTextChange(qIdx, optIdx, e.target.value)}
+                                          className="flex-1 bg-white px-5 py-3 rounded-2xl border border-slate-200 focus:border-orange-500 focus:bg-white outline-none transition-all text-slate-800 font-semibold placeholder:text-slate-300 shadow-sm"
+                                          placeholder={`Option ${letter}`}
+                                        />
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                
+                                <p className="text-[11px] text-slate-400 font-semibold italic">
+                                  Tap the circle to mark the correct answer
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Add Question Button */}
+                          <button
+                            type="button"
+                            onClick={handleAddQuestion}
+                            className="w-full py-4 border-2 border-dashed border-orange-200 hover:border-orange-400 rounded-2xl flex items-center justify-center gap-2 text-orange-500 font-bold hover:bg-orange-55/10 transition-all active:scale-95"
+                          >
+                            <Plus className="w-5 h-5" />
+                            Add Question
+                          </button>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
               </div>
             </div>
 
