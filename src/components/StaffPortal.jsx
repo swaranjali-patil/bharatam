@@ -4032,18 +4032,18 @@ export default function StaffPortal({ user, onLogout }) {
               </div>
 
               {/* ── Body: Two-column ── */}
-              <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col md:flex-row">
+              <div className="flex-1 overflow-y-auto md:overflow-hidden flex flex-col md:flex-row bg-[#f8fafc]">
 
                 {/* LEFT — Upload Form Panel */}
-                <div className="w-full md:w-96 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-gray-100 flex flex-col md:overflow-y-auto">
-                  <div className="p-7 space-y-5">
+                <div className="w-full md:w-96 flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-slate-100 flex flex-col md:overflow-y-auto shadow-sm">
+                  <div className="p-7 space-y-6">
                     <div>
-                      <h2 className="text-base font-semibold text-gray-900">Add Content</h2>
-                      <p className="text-xs text-gray-400 mt-0.5">Upload videos, PDFs or images to this course</p>
+                      <h2 className="text-lg font-black text-slate-800 leading-tight">Add Content</h2>
+                      <p className="text-xs font-semibold text-slate-400 mt-1 leading-normal">Upload videos, lectures or reference notes to this course.</p>
                     </div>
 
                     {/* Content Type Tabs */}
-                    <div className="flex bg-gray-50 border border-gray-100 rounded-xl p-1 gap-1">
+                    <div className="flex bg-slate-50 border border-slate-100 rounded-2xl p-1 gap-1">
                       {[
                         { type: 'video', icon: Video, label: 'Video' },
                         { type: 'pdf', icon: FileText, label: 'PDF' },
@@ -4051,10 +4051,10 @@ export default function StaffPortal({ user, onLogout }) {
                       ].map(tab => (
                         <button key={tab.type} type="button"
                           onClick={() => { setMediaContentType(tab.type); setSelectedMediaFiles([]); setMediaUrl(''); }}
-                          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 ${
                             mediaContentType === tab.type
-                              ? 'bg-white text-orange-600 shadow-sm border border-gray-100'
-                              : 'text-gray-400 hover:text-gray-600'
+                              ? 'bg-white text-orange-600 shadow-sm border border-slate-150 scale-[1.02]'
+                              : 'text-slate-400 hover:text-slate-600'
                           }`}
                         >
                           <tab.icon className="w-3.5 h-3.5" />{tab.label}
@@ -4064,20 +4064,20 @@ export default function StaffPortal({ user, onLogout }) {
 
                     {/* Title */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-widest block">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
                         {mediaContentType === 'video' ? 'Video Title' : mediaContentType === 'pdf' ? 'PDF Title' : 'Image Title'}
                       </label>
                       <input type="text" value={mediaTitle} onChange={e => setMediaTitle(e.target.value)}
                         placeholder={mediaContentType === 'video' ? 'e.g. Chapter 1: Introduction' : mediaContentType === 'pdf' ? 'e.g. Lecture Notes' : 'e.g. Course Banner'}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100 transition-all"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 outline-none focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100/40 transition-all shadow-sm"
                       />
                     </div>
 
                     {/* File Upload Zone */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-widest block">Upload File</label>
-                      <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-xl py-8 cursor-pointer transition-all ${
-                        selectedMediaFiles.length > 0 ? 'border-orange-300 bg-orange-50/40' : 'border-gray-200 bg-gray-50 hover:border-orange-300 hover:bg-orange-50/20'
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Upload File</label>
+                      <label className={`flex flex-col items-center justify-center w-full border-2 border-dashed rounded-2xl py-8 cursor-pointer transition-all duration-200 ${
+                        selectedMediaFiles.length > 0 ? 'border-orange-300 bg-orange-50/20' : 'border-slate-200 bg-slate-50 hover:border-orange-300 hover:bg-orange-50/10'
                       }`}>
                         <input type="file" className="hidden"
                           accept={mediaContentType === 'video' ? 'video/*' : mediaContentType === 'pdf' ? 'application/pdf' : 'image/*'}
@@ -4086,20 +4086,20 @@ export default function StaffPortal({ user, onLogout }) {
                         />
                         {selectedMediaFiles.length > 0 ? (
                           <div className="text-center px-4">
-                            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-2">
+                            <div className="w-12 h-12 bg-orange-50 border border-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-2.5 shadow-sm animate-bounce">
                               <Upload className="w-5 h-5 text-orange-500" />
                             </div>
-                            <p className="text-sm font-medium text-orange-600">{selectedMediaFiles.length} file{selectedMediaFiles.length > 1 ? 's' : ''} selected</p>
-                            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">{selectedMediaFiles[0].name}</p>
-                            <button type="button" onClick={e => { e.preventDefault(); setSelectedMediaFiles([]); }} className="mt-2 text-xs text-red-400 hover:text-red-500 font-medium">Remove</button>
+                            <p className="text-sm font-bold text-orange-600">{selectedMediaFiles.length} file{selectedMediaFiles.length > 1 ? 's' : ''} selected</p>
+                            <p className="text-xs font-semibold text-slate-400 mt-1 truncate max-w-[200px] mx-auto">{selectedMediaFiles[0].name}</p>
+                            <button type="button" onClick={e => { e.preventDefault(); setSelectedMediaFiles([]); }} className="mt-2 text-xs text-red-500 hover:text-red-600 font-bold hover:underline">Remove</button>
                           </div>
                         ) : (
-                          <div className="text-center">
-                            <div className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-2">
-                              <Upload className="w-5 h-5 text-gray-400" />
+                          <div className="text-center px-4">
+                            <div className="w-12 h-12 bg-white border border-slate-150 rounded-2xl flex items-center justify-center mx-auto mb-2.5 shadow-sm group-hover:scale-110 transition-transform">
+                              <Upload className="w-5 h-5 text-slate-400" />
                             </div>
-                            <p className="text-sm font-medium text-gray-500">Click to select file</p>
-                            <p className="text-xs text-gray-300 mt-0.5">{mediaContentType === 'video' ? 'MP4, MOV, MKV' : mediaContentType === 'pdf' ? 'PDF only' : 'JPG, PNG, WebP'}</p>
+                            <p className="text-sm font-bold text-slate-700">Click to select file</p>
+                            <p className="text-[10px] font-black text-slate-400 tracking-wider uppercase mt-1">{mediaContentType === 'video' ? 'MP4, MOV, MKV' : mediaContentType === 'pdf' ? 'PDF only' : 'JPG, PNG, WebP'}</p>
                           </div>
                         )}
                       </label>
@@ -4107,27 +4107,29 @@ export default function StaffPortal({ user, onLogout }) {
 
                     {/* OR divider + URL input (video only) */}
                     {mediaContentType === 'video' && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-3">
                         <div className="flex items-center gap-2">
-                          <div className="flex-1 h-px bg-gray-100" />
-                          <span className="text-xs text-gray-300 font-medium">or paste URL</span>
-                          <div className="flex-1 h-px bg-gray-100" />
+                          <div className="flex-1 h-px bg-slate-100" />
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">or paste URL</span>
+                          <div className="flex-1 h-px bg-slate-100" />
                         </div>
                         <input type="text" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
                           placeholder="Bunny video ID or CDN URL"
-                          className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder:text-gray-300 outline-none focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100 transition-all"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 outline-none focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100/40 transition-all shadow-sm"
                         />
                       </div>
                     )}
 
                     {/* Access Type */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-widest block">Access</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Access Mode</label>
                       <div className="flex gap-2">
                         {[{ val: 'free', label: 'Free Preview' }, { val: 'paid', label: 'Paid Only' }].map(opt => (
                           <button key={opt.val} type="button" onClick={() => setMediaAccessType(opt.val)}
-                            className={`flex-1 py-2.5 rounded-xl text-xs font-medium border transition-all ${
-                              mediaAccessType === opt.val ? 'bg-orange-500 border-orange-500 text-white shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:border-orange-300'
+                            className={`flex-1 py-3 rounded-xl text-xs font-bold border transition-all duration-200 ${
+                              mediaAccessType === opt.val
+                                ? 'bg-orange-500 border-orange-500 text-white shadow-md shadow-orange-150 scale-[1.01]'
+                                : 'bg-white border-slate-200 text-slate-500 hover:border-orange-355 hover:text-slate-700'
                             }`}
                           >{opt.label}</button>
                         ))}
@@ -4136,7 +4138,7 @@ export default function StaffPortal({ user, onLogout }) {
 
                     {/* Upload Button */}
                     <button type="button" onClick={handleUploadMedia}
-                      className="w-full flex items-center justify-center gap-2 py-3.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-orange-200"
+                      className="w-full flex items-center justify-center gap-2 py-4 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-orange-150 hover:shadow-lg hover:-translate-y-0.5"
                     >
                       <Upload className="w-4 h-4" />
                       Upload {mediaContentType === 'video' ? 'Video' : mediaContentType === 'pdf' ? 'PDF' : 'Image'}
@@ -4145,14 +4147,14 @@ export default function StaffPortal({ user, onLogout }) {
                 </div>
 
                 {/* RIGHT — Uploads List */}
-                <div className="flex-1 flex flex-col md:overflow-hidden min-h-[500px] md:min-h-0">
-                  <div className="flex-shrink-0 px-4 md:px-8 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[#f2f4f8]">
-                    <div className="w-full sm:w-auto">
-                      <h3 className="text-base font-semibold text-gray-900">Uploaded Content</h3>
-                      <p className="text-xs text-gray-400 mt-0.5">{allUploads.length} item{allUploads.length !== 1 ? 's' : ''} · {courseVideos.length} videos · {coursePdfs.length} PDFs</p>
+                <div className="flex-1 flex flex-col md:overflow-hidden min-h-[500px] md:min-h-0 bg-[#f8fafc]">
+                  <div className="flex-shrink-0 px-8 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 bg-white shadow-sm">
+                    <div>
+                      <h3 className="text-base font-black text-slate-800 leading-tight">Uploaded Content</h3>
+                      <p className="text-xs font-semibold text-slate-400 mt-1">{allUploads.length} item{allUploads.length !== 1 ? 's' : ''} · {courseVideos.length} videos · {coursePdfs.length} PDFs</p>
                     </div>
                     {/* Filter tabs */}
-                    <div className="flex flex-wrap bg-white border border-gray-100 rounded-xl p-1 gap-1 shadow-sm w-full sm:w-auto">
+                    <div className="flex flex-wrap bg-slate-50 border border-slate-150 rounded-xl p-1 gap-1 w-full sm:w-auto">
                       {[
                         { key: 'all',   label: 'All',    count: allUploads.length },
                         { key: 'video', label: 'Videos', count: courseVideos.length },
@@ -4162,15 +4164,15 @@ export default function StaffPortal({ user, onLogout }) {
                         <button
                           key={tab.key}
                           onClick={() => setUploadContentFilter(tab.key)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          className={`flex items-center gap-2 px-3.5 py-1.8 rounded-lg text-xs font-bold transition-all duration-200 ${
                             uploadContentFilter === tab.key
                               ? 'bg-orange-500 text-white shadow-sm'
-                              : 'text-gray-400 hover:text-gray-700'
+                              : 'text-slate-400 hover:text-slate-600'
                           }`}
                         >
                           {tab.label}
-                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
-                            uploadContentFilter === tab.key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'
+                          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+                            uploadContentFilter === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-400'
                           }`}>{tab.count}</span>
                         </button>
                       ))}
@@ -4179,119 +4181,127 @@ export default function StaffPortal({ user, onLogout }) {
 
                   {/* Inline video preview */}
                   {previewUrl && (
-                    <div className="mx-8 mb-4 bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm flex-shrink-0">
-                      <div className="flex items-center justify-between px-5 py-3 border-b border-gray-50">
-                        <p className="text-sm font-medium text-gray-700 truncate">{previewTitle || 'Preview'}</p>
-                        <button onClick={() => { setPreviewUrl(''); setPreviewTitle(''); }} className="text-xs text-gray-400 hover:text-gray-600 font-medium px-2 py-1 rounded-lg hover:bg-gray-50 transition-colors">Close</button>
+                    <div className="mx-8 mt-6 bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-md flex-shrink-0">
+                      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-50">
+                        <p className="text-sm font-bold text-slate-700 truncate">{previewTitle || 'Preview'}</p>
+                        <button onClick={() => { setPreviewUrl(''); setPreviewTitle(''); }} className="text-xs text-slate-400 hover:text-slate-600 font-bold px-3 py-1.5 rounded-xl hover:bg-slate-50 transition-colors">Close</button>
                       </div>
                       {previewUrl.includes('iframe.mediadelivery.net') || previewUrl.includes('/embed/') ? (
                         <div className="relative pt-[40%] w-full bg-black">
                           <iframe src={previewUrl} loading="lazy" className="absolute inset-0 w-full h-full border-0" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;" allowFullScreen />
                         </div>
                       ) : (
-                        <video controls className="w-full max-h-64 bg-black" src={previewUrl} />
+                        <video controls className="w-full max-h-72 bg-black" src={previewUrl} />
                       )}
                     </div>
                   )}
 
-                  <div className="flex-1 overflow-y-auto px-8 pb-8">
+                  <div className="flex-1 overflow-y-auto p-8">
                     {allUploads.length === 0 ? (
-                      <div className="bg-white rounded-2xl border border-gray-100 py-20 flex flex-col items-center gap-3">
-                        <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center">
-                          <File className="w-6 h-6 text-gray-300" />
+                      <div className="bg-white rounded-3xl border border-slate-200 py-24 flex flex-col items-center gap-4 text-center shadow-sm max-w-lg mx-auto mt-10">
+                        <div className="w-16 h-16 bg-orange-50 rounded-2xl flex items-center justify-center border border-orange-100 shadow-sm transition-transform duration-300 hover:rotate-6">
+                          <Upload className="w-6 h-6 text-orange-500 animate-pulse" />
                         </div>
-                        <p className="text-sm font-medium text-gray-400">No content uploaded yet</p>
-                        <p className="text-xs text-gray-300">Use the panel on the left to add videos, PDFs or images</p>
+                        <div>
+                          <p className="text-base font-bold text-slate-800">No content uploaded yet</p>
+                          <p className="text-xs font-semibold text-slate-400 mt-1 max-w-xs leading-relaxed">
+                            Use the panel on the left to upload your video lectures, study notes, or images.
+                          </p>
+                        </div>
                       </div>
                     ) : (
-                      <div className="bg-white rounded-2xl border border-gray-100 overflow-x-auto shadow-sm w-full">
-                        <table className="w-full min-w-[700px]">
-                          <thead>
-                            <tr className="bg-gray-50 border-b border-gray-100">
-                              <th className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-5 py-3 w-10">#</th>
-                              <th className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-4 py-3">Title</th>
-                              <th className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-4 py-3">Type</th>
-                              <th className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-4 py-3">Access</th>
-                              <th className="text-left text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-4 py-3">Status</th>
-                              <th className="text-right text-[10px] font-semibold text-gray-400 uppercase tracking-widest px-5 py-3">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-50">
-                            {(() => {
-                              const filtered = uploadContentFilter === 'all'
-                                ? allUploads
-                                : allUploads.filter(i => i.contentType === uploadContentFilter);
-                              if (filtered.length === 0) {
-                                return (
-                                  <tr>
-                                    <td colSpan={6} className="py-12 text-center">
-                                      <p className="text-sm font-medium text-gray-400">No {uploadContentFilter}s uploaded yet</p>
-                                    </td>
-                                  </tr>
-                                );
-                              }
-                              return filtered.map((item, idx) => {
-                              const isVideo = item.contentType === 'video';
-                              const isPdf = item.contentType === 'pdf';
-                              const typeColor = isVideo ? 'bg-blue-50 text-blue-500' : isPdf ? 'bg-violet-50 text-violet-500' : 'bg-emerald-50 text-emerald-500';
-                              const TypeIcon = isVideo ? Video : isPdf ? FileText : Image;
-                              const addedDate = item.addedAt ? (() => { try { const d = new Date(item.addedAt); return isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } })() : '';
-                              return (
-                                <motion.tr key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }} className="hover:bg-orange-50/20 transition-colors group">
-                                  <td className="px-5 py-3.5 text-xs font-medium text-gray-300">{idx + 1}</td>
-                                  <td className="px-4 py-3.5">
-                                    <div className="flex items-center gap-3">
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${typeColor}`}>
-                                        <TypeIcon className="w-4 h-4" />
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate max-w-[220px]">{item.title || 'Untitled'}</p>
-                                        {addedDate && <p className="text-xs text-gray-400 mt-0.5">{addedDate}</p>}
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3.5">
-                                    <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wide ${typeColor}`}>{item.contentType}</span>
-                                  </td>
-                                  <td className="px-4 py-3.5">
-                                    <span className={`text-xs font-medium ${item.accessType === 'free' ? 'text-emerald-600' : 'text-gray-500'}`}>{item.accessType === 'free' ? 'Free' : 'Paid'}</span>
-                                  </td>
-                                  <td className="px-4 py-3.5">
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-medium uppercase tracking-wide ${
-                                      item.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' : item.status === 'Rejected' ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'
-                                    }`}>
-                                      <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Approved' ? 'bg-emerald-500' : item.status === 'Rejected' ? 'bg-red-500' : 'bg-amber-500'}`} />
-                                      {item.status === 'Approved' ? 'Approved' : item.status === 'Rejected' ? 'Rejected' : 'Pending'}
-                                    </span>
-                                  </td>
-                                  <td className="px-5 py-3.5">
-                                    <div className="flex items-center justify-end gap-1">
-                                      {isVideo && item.url && (
-                                        <button type="button" onClick={() => { setPreviewUrl(item.url); setPreviewTitle(item.title); }}
-                                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-medium rounded-lg transition-all">Preview</button>
-                                      )}
-                                      {item.url && (
-                                        <a href={item.url} target="_blank" rel="noopener noreferrer"
-                                          className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-medium rounded-lg transition-all">Open</a>
-                                      )}
-                                      <button onClick={() => handleRemoveMedia(item.id, item.contentType)}
-                                        className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </motion.tr>
-                              );
-                            })
-                            })()}
-                          </tbody>
-                        </table>
-                        <div className="px-5 py-3 border-t border-gray-50 bg-gray-50/40 flex items-center justify-between">
-                          <p className="text-xs font-medium text-gray-400">
-                            <span className="font-semibold text-gray-700">{allUploads.filter(i => i.status === 'Approved').length}</span> approved
-                            {allUploads.filter(i => i.status !== 'Approved').length > 0 && <> · <span className="font-semibold text-amber-600">{allUploads.filter(i => i.status !== 'Approved').length}</span> pending</>}
+                      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden w-full">
+                        <div className="overflow-x-auto">
+                          <table className="w-full min-w-[700px] text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50/50 border-b border-slate-100">
+                                <th className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 py-4 w-12">#</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 py-4">Title</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 py-4">Type</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 py-4">Access</th>
+                                <th className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-5 py-4">Status</th>
+                                <th className="text-right text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 py-4">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                              {(() => {
+                                const filtered = uploadContentFilter === 'all'
+                                  ? allUploads
+                                  : allUploads.filter(i => i.contentType === uploadContentFilter);
+                                if (filtered.length === 0) {
+                                  return (
+                                    <tr>
+                                      <td colSpan={6} className="py-16 text-center text-sm font-semibold text-slate-400">
+                                        No {uploadContentFilter}s uploaded yet.
+                                      </td>
+                                    </tr>
+                                  );
+                                }
+                                return filtered.map((item, idx) => {
+                                  const isVideo = item.contentType === 'video';
+                                  const isPdf = item.contentType === 'pdf';
+                                  const typeColor = isVideo ? 'bg-blue-50 border-blue-100 text-blue-500' : isPdf ? 'bg-violet-50 border-violet-100 text-violet-500' : 'bg-emerald-50 border-emerald-100 text-emerald-500';
+                                  const TypeIcon = isVideo ? Video : isPdf ? FileText : Image;
+                                  const addedDate = item.addedAt ? (() => { try { const d = new Date(item.addedAt); return isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } })() : '';
+                                  return (
+                                    <motion.tr key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }} className="hover:bg-slate-50/50 transition-colors group">
+                                      <td className="px-6 py-4 text-xs font-semibold text-slate-300">{idx + 1}</td>
+                                      <td className="px-5 py-4">
+                                        <div className="flex items-center gap-3">
+                                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 border ${typeColor}`}>
+                                            <TypeIcon className="w-4 h-4" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-bold text-slate-800 truncate max-w-[220px]">{item.title || 'Untitled'}</p>
+                                            {addedDate && <p className="text-xs font-semibold text-slate-400 mt-0.5">{addedDate}</p>}
+                                          </div>
+                                        </div>
+                                      </td>
+                                      <td className="px-5 py-4">
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider border ${typeColor}`}>{item.contentType}</span>
+                                      </td>
+                                      <td className="px-5 py-4">
+                                        <span className={`text-xs font-bold ${item.accessType === 'free' ? 'text-emerald-600' : 'text-slate-500'}`}>{item.accessType === 'free' ? 'Free' : 'Paid'}</span>
+                                      </td>
+                                      <td className="px-5 py-4">
+                                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider border ${
+                                          item.status === 'Approved' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : item.status === 'Rejected' ? 'bg-red-50 border-red-100 text-red-500' : 'bg-amber-50 border-amber-100 text-amber-600'
+                                        }`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Approved' ? 'bg-emerald-500' : item.status === 'Rejected' ? 'bg-red-500' : 'bg-amber-500'}`} />
+                                          {item.status === 'Approved' ? 'Approved' : item.status === 'Rejected' ? 'Rejected' : 'Pending'}
+                                        </span>
+                                      </td>
+                                      <td className="px-6 py-4">
+                                        <div className="flex items-center justify-end gap-1.5">
+                                          {isVideo && item.url && (
+                                            <button type="button" onClick={() => { setPreviewUrl(item.url); setPreviewTitle(item.title); }}
+                                              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-all">Preview</button>
+                                          )}
+                                          {item.url && (
+                                            <a href={item.url} target="_blank" rel="noopener noreferrer"
+                                              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-150 text-slate-600 text-xs font-bold rounded-lg transition-all">Open</a>
+                                          )}
+                                          <button onClick={() => handleRemoveMedia(item.id, item.contentType)}
+                                            className="p-1.5 rounded-lg hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                            title="Delete Content"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </motion.tr>
+                                  );
+                                });
+                              })()}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                          <p className="text-xs font-semibold text-slate-400">
+                            <span className="font-bold text-slate-700">{allUploads.filter(i => i.status === 'Approved').length}</span> approved
+                            {allUploads.filter(i => i.status !== 'Approved').length > 0 && <> · <span className="font-bold text-amber-600">{allUploads.filter(i => i.status !== 'Approved').length}</span> pending</>}
                           </p>
-                          <p className="text-xs font-medium text-gray-400">
+                          <p className="text-xs font-semibold text-slate-400">
                             {uploadContentFilter === 'all' ? allUploads.length : allUploads.filter(i => i.contentType === uploadContentFilter).length} {uploadContentFilter === 'all' ? 'total' : uploadContentFilter + 's'}
                           </p>
                         </div>
