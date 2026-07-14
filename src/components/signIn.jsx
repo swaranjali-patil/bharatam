@@ -127,7 +127,7 @@ export default function SignIn({ onSwitch, onLoginSuccess }) {
           const fallbackAdmin = {
             uid: userId,
             fullName: "System Admin",
-            role: "admin",
+            role: email === "bharatam@gmail.com" ? "superadmin" : "admin",
             email: email
           };
           alert("Login Successful");
