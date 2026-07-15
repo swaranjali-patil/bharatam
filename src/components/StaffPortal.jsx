@@ -226,6 +226,10 @@ export default function StaffPortal({ user, onLogout }) {
   const [txPerPage, setTxPerPage] = useState(5);
   const [selectedTx, setSelectedTx] = useState(null);
   
+  // My Students Tab States
+  const [studentSearch, setStudentSearch] = useState('');
+  const [studentCourseFilter, setStudentCourseFilter] = useState('all');
+  
   // Interactive Profile Setup States
   const [profileSubTab, setProfileSubTab] = useState('personal'); // 'personal' | 'payout'
   const [preferredPayoutChannel, setPreferredPayoutChannel] = useState('bank'); // 'bank' | 'upi'
@@ -750,12 +754,12 @@ export default function StaffPortal({ user, onLogout }) {
     return () => clearTimeout(timer);
   }, [profileData.upiId, profileData.bankAccount]);
 
-  // Load real transactions from Firestore if available
+  // Load real transactions from Firestore
   useEffect(() => {
     if (!user?.uid) return;
     const fetchTransactions = async () => {
       try {
-        const collectionsToTry = ['payments', 'orders', 'enrollments'];
+        const collectionsToTry = ['purchases', 'payments', 'orders', 'enrollments'];
         let fetched = [];
 
         for (const colName of collectionsToTry) {
@@ -767,10 +771,14 @@ export default function StaffPortal({ user, onLogout }) {
               return {
                 id: d.id,
                 type: data.type === 'payout' || data.type === 'debit' ? 'debit' : 'credit',
-                title: data.title || data.description || `Course Enrollment - ${data.courseTitle || ''}`,
-                date: data.date || (data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toLocaleDateString() : (data.createdAt || '')),
-                amount: data.amount || 0,
-                status: data.status || 'Completed'
+                title: data.title || data.courseTitle || `Course Purchase - ${data.courseTitle || ''}`,
+                date: data.date || (data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toLocaleDateString('en-IN') : (data.createdAt || '')),
+                amount: Number(data.amount || data.price || data.totalAmount || 0),
+                status: data.status || 'Completed',
+                studentName: data.studentName || data.userName || data.name || 'Learner',
+                studentEmail: data.studentEmail || data.email || '—',
+                courseId: data.courseId || '',
+                commission: data.commission
               };
             });
             fetched = fetched.concat(mapped);
@@ -795,16 +803,12 @@ export default function StaffPortal({ user, onLogout }) {
           fetched = fetched.concat(mappedPayouts);
         }
 
-        if (fetched.length > 0) {
-          // sort by date if possible (best-effort), else keep as-is
-          fetched.sort((a, b) => new Date(b.date) - new Date(a.date));
-          setTransactions(fetched);
-        } else {
-          setTransactions(sampleTransactions);
-        }
+        // sort by date if possible (best-effort), else keep as-is
+        fetched.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setTransactions(fetched);
       } catch (err) {
         console.error('Failed to load transactions from Firestore', err);
-        setTransactions(sampleTransactions);
+        setTransactions([]);
       }
     };
     fetchTransactions();
@@ -1732,6 +1736,212 @@ export default function StaffPortal({ user, onLogout }) {
               );
             })()}
 
+          </div>
+        </motion.div>
+      );
+    }
+
+    if (activeTab === 'students') {
+      // Filter out credits
+      const creditTx = transactions.filter(t => t.type === 'credit');
+
+      // Build unique student records
+      const studentMap = {};
+      creditTx.forEach(t => {
+        const matchedCourse = courses.find(c => c.id === t.courseId);
+        const emailKey = (t.studentEmail || '').toLowerCase() || (t.studentName || '').toLowerCase() || 'unknown';
+        
+        if (!studentMap[emailKey]) {
+          studentMap[emailKey] = {
+            email: t.studentEmail || '—',
+            name: t.studentName || 'Learner',
+            purchasedCourses: [],
+            totalPaid: 0,
+            totalTrainerEarnings: 0,
+            lastPurchaseDate: t.date || (t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleDateString('en-IN') : '—'),
+            id: t.userId || t.id
+          };
+        }
+
+        const amt = Number(t.amount || 0);
+        const commission = typeof t.commission === 'number'
+          ? t.commission
+          : ((matchedCourse && typeof matchedCourse.commission === 'number') ? matchedCourse.commission : globalCommission);
+        const netAmt = Math.round(amt * (100 - commission) / 100);
+
+        studentMap[emailKey].totalPaid += amt;
+        studentMap[emailKey].totalTrainerEarnings += netAmt;
+        studentMap[emailKey].purchasedCourses.push({
+          courseId: t.courseId,
+          title: t.courseTitle || matchedCourse?.title || 'Course Package',
+          amount: amt,
+          trainerShare: netAmt,
+          date: t.date || (t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleDateString('en-IN') : '—')
+        });
+      });
+
+      const trainerStudentsList = Object.values(studentMap);
+
+      // Filter by search query
+      const filteredStudents = trainerStudentsList.filter(s => {
+        const queryStr = studentSearch.toLowerCase();
+        const matchesSearch = !queryStr || 
+          (s.name || '').toLowerCase().includes(queryStr) || 
+          (s.email || '').toLowerCase().includes(queryStr);
+        
+        const matchesCourse = studentCourseFilter === 'all' || 
+          s.purchasedCourses.some(pc => pc.courseId === studentCourseFilter || pc.title === studentCourseFilter);
+        
+        return matchesSearch && matchesCourse;
+      });
+
+      // Total figures
+      const totalStudentsCount = trainerStudentsList.length;
+      const totalGrossSales = trainerStudentsList.reduce((s, st) => s + st.totalPaid, 0);
+      const totalNetEarnings = trainerStudentsList.reduce((s, st) => s + st.totalTrainerEarnings, 0);
+
+      const avatarColors = ['bg-orange-100 text-orange-600', 'bg-blue-100 text-blue-600', 'bg-emerald-100 text-emerald-600', 'bg-amber-100 text-amber-600', 'bg-violet-100 text-violet-600', 'bg-indigo-100 text-indigo-600'];
+
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-5xl mx-auto pb-24 md:pb-0 space-y-6"
+        >
+          {/* Header */}
+          <div className="mt-4 md:mt-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-gray-900">My Enrolled Students</h2>
+              <p className="text-sm text-gray-400 mt-0.5">Understand your learner reach and revenue splits course-by-course.</p>
+            </div>
+          </div>
+
+          {/* Stats Deck */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { label: 'Total Enrolled Students', value: totalStudentsCount, icon: '👥', color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100' },
+              { label: 'Gross Student Payments', value: `₹${totalGrossSales.toLocaleString()}`, icon: '💰', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-100' },
+              { label: 'Net Take-Home Share', value: `₹${totalNetEarnings.toLocaleString()}`, icon: '🛡️', color: 'text-orange-500', bg: 'bg-orange-50 border-orange-100' }
+            ].map((stat, i) => (
+              <div key={i} className={`bg-white rounded-2xl p-5 border shadow-sm flex items-center gap-3.5 ${stat.bg}`}>
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 border bg-white ${stat.color}`}>{stat.icon}</div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-2xl font-black text-gray-900 leading-tight mt-0.5">{stat.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Search & Filter Controls */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex flex-col md:flex-row items-center gap-4">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+              <input
+                type="text"
+                placeholder="Search students by name or email..."
+                value={studentSearch}
+                onChange={e => setStudentSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-semibold text-gray-700 placeholder:text-gray-300 outline-none focus:border-orange-300 focus:bg-white transition-all"
+              />
+            </div>
+            
+            <div className="relative w-full md:w-64">
+              <SlidersHorizontal className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+              <select
+                value={studentCourseFilter}
+                onChange={e => setStudentCourseFilter(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-bold text-gray-600 outline-none appearance-none focus:border-orange-300 focus:bg-white transition-all cursor-pointer"
+              >
+                <option value="all">All Courses</option>
+                {courses.map(c => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Students Registry Table */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[700px]">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
+                    <th className="text-left text-[10px] font-black text-gray-400 uppercase tracking-widest px-6 py-4">Student Info</th>
+                    <th className="text-left text-[10px] font-black text-gray-400 uppercase tracking-widest px-6 py-4">Enrolled Course</th>
+                    <th className="text-left text-[10px] font-black text-gray-400 uppercase tracking-widest px-6 py-4">Transaction Split</th>
+                    <th className="text-left text-[10px] font-black text-gray-400 uppercase tracking-widest px-6 py-4">Last Purchase</th>
+                    <th className="text-center text-[10px] font-black text-gray-400 uppercase tracking-widest px-6 py-4">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-16 text-center">
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-4xl">👥</span>
+                          <p className="font-bold text-gray-400 text-sm">No students found matching filters.</p>
+                          {studentSearch && <p className="text-xs text-gray-300">Try adjusting your keywords.</p>}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredStudents.map((st, idx) => {
+                      const initials = (st.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                      const colorClass = avatarColors[idx % avatarColors.length];
+                      return (
+                        <tr key={idx} className="hover:bg-gray-50/30 transition-colors">
+                          {/* Student Info */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs ${colorClass}`}>
+                                {initials}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{st.name}</p>
+                                <p className="text-[11px] text-gray-400 font-semibold">{st.email}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Enrolled Courses */}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1.5 max-w-[280px]">
+                              {st.purchasedCourses.map((pc, i) => (
+                                <span key={i} className="inline-flex items-center bg-slate-50 border border-slate-100 text-slate-600 rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                                  {pc.title}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+
+                          {/* Transaction Splits */}
+                          <td className="px-6 py-4">
+                            <div>
+                              <p className="text-xs font-bold text-gray-950">Net: ₹{st.totalTrainerEarnings.toLocaleString()}</p>
+                              <p className="text-[10px] font-semibold text-gray-400 mt-0.5">Gross Paid: ₹{st.totalPaid.toLocaleString()}</p>
+                            </div>
+                          </td>
+
+                          {/* Last Purchase */}
+                          <td className="px-6 py-4 text-xs font-bold text-gray-400">
+                            {st.lastPurchaseDate}
+                          </td>
+
+                          {/* Status */}
+                          <td className="px-6 py-4 text-center">
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 border border-emerald-100 text-emerald-600 text-[9px] font-black uppercase tracking-wider rounded-lg">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              Active
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </motion.div>
       );
@@ -3345,6 +3555,14 @@ export default function StaffPortal({ user, onLogout }) {
           </button>
 
           <button 
+            onClick={() => setActiveTab('students')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'students' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-600'}`}
+          >
+            <Users className="w-5 h-5" />
+            <span className="whitespace-nowrap">My Students</span>
+          </button>
+          
+          <button 
             onClick={() => setActiveTab('revenue')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'revenue' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-600'}`}
           >
@@ -3394,6 +3612,7 @@ export default function StaffPortal({ user, onLogout }) {
         {[
           { id: 'insights', icon: BarChart2, label: 'Insights' },
           { id: 'courses', icon: BookOpen, label: 'Courses' },
+          { id: 'students', icon: Users, label: 'Students' },
           { id: 'revenue', icon: Wallet, label: 'Revenue' },
           { id: 'profile', icon: User, label: 'Profile' }
         ].map((item, idx) => (
