@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { LogOut, User, Phone, Building, CreditCard, Save, Wallet, Users, Library, BarChart2, BookOpen, Plus, Upload, ArrowLeft, ArrowRight, ChevronDown, Video, FileText, Trash2, CheckCircle, Users as Users2, Clock, File, Image, History, TrendingUp, CheckCircle as CheckCircle2, Camera, Mail, Search, SlidersHorizontal, Download, ExternalLink, Eye, EyeOff, ChevronRight, Check } from 'lucide-react';
+import { LogOut, User, Phone, Building, CreditCard, Save, Wallet, Users, Library, BarChart2, BookOpen, Plus, Upload, ArrowLeft, ArrowRight, ChevronDown, Video, FileText, Trash2, CheckCircle, Users as Users2, Clock, File, Image, History, TrendingUp, CheckCircle as CheckCircle2, Camera, Mail, Search, SlidersHorizontal, Download, ExternalLink, Eye, EyeOff, ChevronRight, Check, Percent, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, writeBatch, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -266,36 +266,7 @@ export default function StaffPortal({ user, onLogout }) {
   // Dashboard card selection — drives which graph is highlighted
   const [activeOverviewCard, setActiveOverviewCard] = useState(null); // null | 'earnings' | 'students' | 'courses'
 
-  // Base values matching the user's screenshot
-  const BASE_EARNINGS = 240000;
-  const BASE_WITHDRAWN = 23000;
-  const BASE_PENDING = 0;
 
-  // Calculate dynamic metrics on top of base screenshot values
-  const totalEarnings = useMemo(() => {
-    const additional = transactions
-      .filter(tx => tx.type === 'credit')
-      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-    return BASE_EARNINGS + additional;
-  }, [transactions]);
-
-  const withdrawnAmount = useMemo(() => {
-    const additional = transactions
-      .filter(tx => tx.type === 'debit' && tx.status === 'Completed')
-      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-    return BASE_WITHDRAWN + additional;
-  }, [transactions]);
-
-  const pendingPayout = useMemo(() => {
-    const additional = transactions
-      .filter(tx => tx.type === 'debit' && tx.status !== 'Completed')
-      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
-    return BASE_PENDING + additional;
-  }, [transactions]);
-
-  const availableBalance = useMemo(() => {
-    return totalEarnings - withdrawnAmount - pendingPayout;
-  }, [totalEarnings, withdrawnAmount, pendingPayout]);
 
   const processedChartData = useMemo(() => {
     const now = new Date();
@@ -548,6 +519,59 @@ export default function StaffPortal({ user, onLogout }) {
   const [subscriptions, setSubscriptions] = useState({});
   const [isSubscriptionsLoaded, setIsSubscriptionsLoaded] = useState(false);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
+
+  // Base values matching the user's screenshot
+  const BASE_EARNINGS = 240000;
+  const BASE_WITHDRAWN = 23000;
+  const BASE_PENDING = 0;
+
+  // Calculate dynamic metrics on top of base screenshot values
+  const totalEarnings = useMemo(() => {
+    const additional = transactions
+      .filter(tx => tx.type === 'credit')
+      .reduce((sum, tx) => {
+        const matchedCourse = courses.find(c => c.id === tx.courseId);
+        const commission = typeof tx.commission === 'number'
+          ? tx.commission
+          : ((matchedCourse && typeof matchedCourse.commission === 'number') ? matchedCourse.commission : globalCommission);
+        const netAmt = Number(tx.amount || 0) * (100 - commission) / 100;
+        return sum + netAmt;
+      }, 0);
+    return Math.round(BASE_EARNINGS + additional);
+  }, [transactions, courses, globalCommission]);
+
+  const totalCommissionCut = useMemo(() => {
+    let additionalCut = 0;
+    transactions
+      .filter(tx => tx.type === 'credit')
+      .forEach(tx => {
+        const matchedCourse = courses.find(c => c.id === tx.courseId);
+        const commission = typeof tx.commission === 'number'
+          ? tx.commission
+          : ((matchedCourse && typeof matchedCourse.commission === 'number') ? matchedCourse.commission : globalCommission);
+        const feeAmt = Math.round((Number(tx.amount || 0) * commission) / 100);
+        additionalCut += feeAmt;
+      });
+    return Math.round(60000 + additionalCut); // Base platform fee cut of ₹60,000 + additional transaction cuts
+  }, [transactions, courses, globalCommission]);
+
+  const withdrawnAmount = useMemo(() => {
+    const additional = transactions
+      .filter(tx => tx.type === 'debit' && tx.status === 'Completed')
+      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    return BASE_WITHDRAWN + additional;
+  }, [transactions]);
+
+  const pendingPayout = useMemo(() => {
+    const additional = transactions
+      .filter(tx => tx.type === 'debit' && tx.status !== 'Completed')
+      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0);
+    return BASE_PENDING + additional;
+  }, [transactions]);
+
+  const availableBalance = useMemo(() => {
+    return totalEarnings - withdrawnAmount - pendingPayout;
+  }, [totalEarnings, withdrawnAmount, pendingPayout]);
 
   useEffect(() => {
     const unsubscribeAds = onSnapshot(collection(db, "advertisements"), (snapshot) => {
@@ -1847,16 +1871,31 @@ export default function StaffPortal({ user, onLogout }) {
                             </span>
                           </td>
 
-                          {/* Price */}
+                           {/* Price */}
                           <td className="px-4 py-4">
                             <span className={`text-sm font-bold ${!course.price || course.price === '0' ? 'text-emerald-500' : 'text-gray-800'}`}>
-                              {!course.price || course.price === '0' ? 'Free' : `₹${course.price}`}
+                              {!course.price || course.price === '0' ? 'Free' : `₹${Number(course.price).toLocaleString()}`}
                             </span>
-                            {!course.price || course.price === '0' ? null : (
-                              <span className="text-[10px] text-gray-400 font-semibold block mt-0.5" title="Platform commission fee deducted from sales">
-                                Platform Fee: {course.commission !== undefined && course.commission !== null ? `${course.commission}%` : `${globalCommission}% (Global)`}
-                              </span>
-                            )}
+                            {(() => {
+                              const priceNum = Number(course.price) || 0;
+                              const commRate = course.commission !== undefined && course.commission !== null ? course.commission : globalCommission;
+                              const trainerShareVal = Math.round(priceNum * (100 - commRate) / 100);
+
+                              return !course.price || course.price === '0' ? null : (
+                                <div className="flex flex-col gap-1 mt-1">
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold w-fit border ${
+                                    course.commission !== undefined && course.commission !== null
+                                      ? 'bg-amber-50 border-amber-100 text-amber-600'
+                                      : 'bg-slate-50 border-slate-100 text-slate-500'
+                                  }`} title="Platform fee deducted from sales">
+                                    🏷️ Fee: {commRate}% {course.commission !== undefined && course.commission !== null ? 'Custom' : 'Global'}
+                                  </span>
+                                  <span className="text-[10px] font-semibold text-slate-400 block whitespace-nowrap">
+                                    Trainer Net: <strong className="text-slate-700 font-extrabold">₹{trainerShareVal.toLocaleString()}</strong>
+                                  </span>
+                                </div>
+                              );
+                            })()}
                           </td>
 
                           {/* Content counts */}
@@ -2017,7 +2056,7 @@ export default function StaffPortal({ user, onLogout }) {
           </div>
 
           {/* KPI Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
             {/* Premium Available Balance Card */}
             <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-[2rem] p-6 shadow-2xl relative overflow-hidden group col-span-1 md:col-span-2">
               <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3 group-hover:bg-orange-500/30 transition-all duration-700"></div>
@@ -2049,11 +2088,25 @@ export default function StaffPortal({ user, onLogout }) {
                 <div className="w-12 h-12 bg-orange-50 text-orange-500 rounded-xl flex items-center justify-center">
                   <TrendingUp className="w-6 h-6" />
                 </div>
-                <span className="text-[10px] bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">Gross</span>
+                <span className="text-[10px] bg-orange-50 text-orange-600 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">Take Home</span>
               </div>
               <div className="mt-4">
-                <p className="text-gray-400 font-bold text-xs uppercase tracking-wider">Total Earnings</p>
+                <p className="text-gray-400 font-bold text-xs uppercase tracking-wider">Net Earnings</p>
                 <p className="text-2xl font-black text-gray-900 mt-1">₹{totalEarnings.toLocaleString()}</p>
+              </div>
+            </div>
+
+            {/* Commission Cuts Card */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-md hover:border-rose-200 transition-all duration-300 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
+                  <TrendingDown className="w-6 h-6 animate-bounce" style={{ animationDuration: '3s' }} />
+                </div>
+                <span className="text-[10px] bg-rose-50 text-rose-600 px-2.5 py-1 rounded-md font-bold uppercase tracking-wider">Platform Cut</span>
+              </div>
+              <div className="mt-4">
+                <p className="text-gray-400 font-bold text-xs uppercase tracking-wider">Commission Cut</p>
+                <p className="text-2xl font-black text-rose-600 mt-1">₹{totalCommissionCut.toLocaleString()}</p>
               </div>
             </div>
 
