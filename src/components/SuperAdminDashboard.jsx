@@ -3157,17 +3157,16 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                             <div
                               key={i}
                               onClick={() => setActiveOverviewCard(prev => prev === c.id ? null : c.id)}
-                              className={`bg-white rounded-2xl border shadow-sm p-4 flex items-center justify-between cursor-pointer transition-all select-none
-                              ${isActive ? c.ringColor : 'border-slate-100 hover:shadow-md'}`}
+                              className={`bg-white rounded-2xl border shadow-sm p-5 flex items-center cursor-pointer transition-all select-none
+                              ${isActive ? c.ringColor : 'border-slate-100 hover:shadow-md hover:-translate-y-0.5'}`}
                             >
-                              <div className="flex items-start gap-2.5">
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0 border transition-colors ${c.iconBg}`}>{c.icon}</div>
+                              <div className="flex items-center gap-3.5">
+                                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 border transition-colors ${c.iconBg}`}>{c.icon}</div>
                                 <div>
-                                  <p className="text-xs font-semibold text-slate-400">{c.title}</p>
-                                  <p className={`text-xl font-black leading-none mt-1 transition-colors ${isActive ? 'text-slate-900' : 'text-slate-800'}`}>{c.value}</p>
+                                  <p className="text-[10px] font-bold text-slate-405 uppercase tracking-wider">{c.title}</p>
+                                  <p className={`text-2xl font-black leading-tight mt-1 transition-colors ${isActive ? 'text-slate-950' : 'text-slate-855'}`}>{c.value}</p>
                                 </div>
                               </div>
-                              <Spark data={c.spark} color={c.color} active={isActive} />
                             </div>
                           );
                         })}
