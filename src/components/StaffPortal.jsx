@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { LogOut, User, Phone, Building, CreditCard, Save, Wallet, Users, Library, BarChart2, BookOpen, Plus, Upload, ArrowLeft, ArrowRight, ChevronDown, Video, FileText, Trash2, CheckCircle, Users as Users2, Clock, File, Image, History, TrendingUp, CheckCircle as CheckCircle2, Camera, Mail, Search, SlidersHorizontal, Download, ExternalLink, Eye, EyeOff, ChevronRight, Check, Percent, TrendingDown } from 'lucide-react';
+import { LogOut, User, Phone, Building, CreditCard, Save, Wallet, Users, Library, BarChart2, BookOpen, Plus, Upload, ArrowLeft, ArrowRight, ChevronDown, Video, FileText, Trash2, CheckCircle, Users as Users2, Clock, File, Image, History, TrendingUp, CheckCircle as CheckCircle2, Camera, Mail, Search, SlidersHorizontal, Download, ExternalLink, Eye, EyeOff, ChevronRight, Check, Percent, TrendingDown, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, writeBatch, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -229,6 +229,15 @@ export default function StaffPortal({ user, onLogout }) {
   // My Students Tab States
   const [studentSearch, setStudentSearch] = useState('');
   const [studentCourseFilter, setStudentCourseFilter] = useState('all');
+
+  // Global Promotion Notification States
+  const [promoSettings, setPromoSettings] = useState({ enabled: false, message: '', courseId: '', linkUrl: '' });
+  const [isPromoDismissed, setIsPromoDismissed] = useState(false);
+
+  // Course Reviews Tab States
+  const [reviewsList, setReviewsList] = useState([]);
+  const [trainerReplyText, setTrainerReplyText] = useState({}); // { reviewId: text }
+  const [activeReplyInputId, setActiveReplyInputId] = useState(null); // reviewId
   
   // Interactive Profile Setup States
   const [profileSubTab, setProfileSubTab] = useState('personal'); // 'personal' | 'payout'
@@ -608,6 +617,12 @@ export default function StaffPortal({ user, onLogout }) {
         if (typeof data.commissionRate === 'number') {
           setGlobalCommission(data.commissionRate);
         }
+        setPromoSettings({
+          enabled: data.promoEnabled || false,
+          message: data.promoMessage || '',
+          courseId: data.promoCourseId || '',
+          linkUrl: data.promoLinkUrl || ''
+        });
       }
     }, (error) => {
       console.error("Failed to fetch settings:", error);
@@ -843,7 +858,27 @@ export default function StaffPortal({ user, onLogout }) {
       });
     }, () => {/* ignore errors */});
 
-    return () => unsubWithdraw();
+    // Real-time listener: reviews for this trainer's courses
+    const reviewsQ = query(
+      collection(db, 'bharatam_reviews'),
+      where('trainerId', '==', user.uid)
+    );
+    const unsubReviews = onSnapshot(reviewsQ, (snap) => {
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => {
+        const aT = a.createdAt?.seconds ? a.createdAt.seconds : new Date(a.createdAt || 0).getTime() / 1000;
+        const bT = b.createdAt?.seconds ? b.createdAt.seconds : new Date(b.createdAt || 0).getTime() / 1000;
+        return bT - aT;
+      });
+      setReviewsList(data);
+    }, (err) => {
+      console.error('Error fetching trainer reviews:', err);
+    });
+
+    return () => {
+      unsubWithdraw();
+      unsubReviews();
+    };
   }, [user]);
 
   // Compute dynamic dashboard stats: earnings from purchases, students from unique purchasers
@@ -1942,6 +1977,157 @@ export default function StaffPortal({ user, onLogout }) {
                 </tbody>
               </table>
             </div>
+          </div>
+        </motion.div>
+      );
+    }
+
+    if (activeTab === 'reviews') {
+      const totalReviews = reviewsList.length;
+      const avgRating = totalReviews > 0
+        ? (reviewsList.reduce((s, r) => s + (Number(r.rating) || 0), 0) / totalReviews).toFixed(1)
+        : '0.0';
+      const poorReviews = reviewsList.filter(r => (Number(r.rating) || 0) <= 2).length;
+
+      const avatarColors = ['bg-orange-100 text-orange-600', 'bg-blue-100 text-blue-600', 'bg-emerald-100 text-emerald-600', 'bg-amber-100 text-amber-600', 'bg-violet-100 text-violet-600', 'bg-indigo-100 text-indigo-600'];
+
+      const getReviewDate = (createdAt) => {
+        if (!createdAt) return '—';
+        try {
+          const d = createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt);
+          return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch { return '—'; }
+      };
+
+      const handleReplySubmit = async (revId) => {
+        const text = trainerReplyText[revId];
+        if (!text || !text.trim()) return;
+        try {
+          await updateDoc(doc(db, 'bharatam_reviews', revId), {
+            reply: text,
+            repliedAt: serverTimestamp()
+          });
+          setActiveReplyInputId(null);
+        } catch (err) {
+          console.error("Failed to submit review reply:", err);
+          alert("Failed to submit reply");
+        }
+      };
+
+      return (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-5xl mx-auto pb-24 md:pb-0 space-y-6"
+        >
+          {/* Header */}
+          <div className="mt-4 md:mt-0">
+            <h2 className="text-2xl font-black text-gray-900">Ratings & Student Reviews</h2>
+            <p className="text-sm text-gray-400 mt-0.5">Audit student feedback and submit replies directly to your course reviews.</p>
+          </div>
+
+          {/* Stats Deck */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { label: 'Instructor Average Rating', value: `${avgRating} ★`, icon: '⭐️', color: 'text-amber-500', bg: 'bg-amber-50 border-amber-100' },
+              { label: 'Total Course Reviews', value: totalReviews, icon: '💬', color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100' },
+              { label: 'Low Rating Flagged', value: poorReviews, icon: '⚠️', color: 'text-rose-500', bg: 'bg-rose-50 border-rose-100' }
+            ].map((stat, i) => (
+              <div key={i} className={`bg-white rounded-2xl p-5 border shadow-sm flex items-center gap-3.5 ${stat.bg}`}>
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 border bg-white ${stat.color}`}>{stat.icon}</div>
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{stat.label}</p>
+                  <p className="text-2xl font-black text-gray-900 leading-tight mt-0.5">{stat.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Reviews Feed */}
+          <div className="space-y-4">
+            {reviewsList.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center shadow-sm">
+                <span className="text-4xl block mb-2">⭐</span>
+                <p className="text-sm font-bold text-slate-400">No course reviews posted yet.</p>
+              </div>
+            ) : (
+              reviewsList.map((rev, idx) => {
+                const initials = (rev.studentName || 'Learner').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                const colorClass = avatarColors[idx % avatarColors.length];
+                const stars = Array.from({ length: 5 }, (_, i) => i < (Number(rev.rating) || 5) ? '★' : '☆').join(' ');
+                const isReplying = activeReplyInputId === rev.id;
+
+                return (
+                  <div key={rev.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-300 relative group">
+                    <div className="flex items-start gap-3.5">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${colorClass}`}>
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h4 className="text-sm font-black text-slate-900">{rev.studentName || 'Learner'}</h4>
+                          <span className="bg-slate-50 border border-slate-100 text-slate-600 rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                            📚 {rev.courseTitle || 'Vedic Math'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-amber-500 font-extrabold text-sm tracking-widest">{stars}</span>
+                          <span className="text-[10px] font-semibold text-slate-400">
+                            {getReviewDate(rev.createdAt)}
+                          </span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-700 mt-3 leading-relaxed">
+                          {rev.comment}
+                        </p>
+
+                        {/* Trainer reply bubble */}
+                        {rev.reply ? (
+                          <div className="mt-4 bg-orange-50/50 border border-orange-100 rounded-xl p-3 relative">
+                            <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest text-left">My Response</p>
+                            <p className="text-xs font-semibold text-slate-700 mt-1">{rev.reply}</p>
+                          </div>
+                        ) : !isReplying ? (
+                          <button
+                            onClick={() => {
+                              setActiveReplyInputId(rev.id);
+                              setTrainerReplyText(prev => ({ ...prev, [rev.id]: '' }));
+                            }}
+                            className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold text-orange-500 hover:text-orange-600 transition-colors uppercase tracking-wider"
+                          >
+                            Reply to Review
+                          </button>
+                        ) : (
+                          <div className="mt-4 space-y-2 max-w-lg bg-slate-50/50 border border-slate-100 p-3 rounded-2xl">
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Write Reply</p>
+                            <textarea
+                              rows="2"
+                              value={trainerReplyText[rev.id] || ''}
+                              onChange={e => setTrainerReplyText(prev => ({ ...prev, [rev.id]: e.target.value }))}
+                              placeholder="Type your response to the student..."
+                              className="w-full text-xs font-semibold p-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-orange-400 transition-all resize-none"
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleReplySubmit(rev.id)}
+                                className="px-3.5 py-1.5 bg-orange-500 text-white hover:bg-orange-600 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95"
+                              >
+                                Submit Response
+                              </button>
+                              <button
+                                onClick={() => setActiveReplyInputId(null)}
+                                className="px-3 py-1.5 hover:bg-slate-100 text-slate-400 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </motion.div>
       );
@@ -3561,6 +3747,14 @@ export default function StaffPortal({ user, onLogout }) {
             <Users className="w-5 h-5" />
             <span className="whitespace-nowrap">My Students</span>
           </button>
+
+          <button 
+            onClick={() => setActiveTab('reviews')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${activeTab === 'reviews' ? 'bg-orange-500 text-white shadow-sm' : 'text-slate-500 hover:bg-orange-50 hover:text-orange-600'}`}
+          >
+            <MessageSquare className="w-5 h-5" />
+            <span className="whitespace-nowrap">Ratings & Reviews</span>
+          </button>
           
           <button 
             onClick={() => setActiveTab('revenue')}
@@ -3592,6 +3786,63 @@ export default function StaffPortal({ user, onLogout }) {
 
       {/* Main Content */}
       <main className="flex-1 p-6 md:p-12 overflow-y-auto">
+        {promoSettings.enabled && !isPromoDismissed && (!promoSettings.endsAt || new Date(promoSettings.endsAt) > new Date()) && (
+          <div className="bg-gradient-to-r from-orange-600 to-amber-500 text-white px-4 py-3 rounded-2xl flex items-center justify-between text-xs font-bold shadow-md mb-6 relative z-10 transition-all">
+            <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
+              <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Promotion</span>
+              <span>{promoSettings.message}</span>
+              {(() => {
+                if (!promoSettings.endsAt) return null;
+                const diffMs = new Date(promoSettings.endsAt) - new Date();
+                if (diffMs <= 0) return null;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                let countdownText = '';
+                if (diffDays >= 1) {
+                  countdownText = `${diffDays + 1} days left`;
+                } else {
+                  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                  if (diffHours >= 1) {
+                    countdownText = `${diffHours} hours left`;
+                  } else {
+                    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                    countdownText = `${diffMinutes} mins left`;
+                  }
+                }
+                return (
+                  <span className="bg-red-500/80 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-black flex items-center gap-1 animate-pulse border border-red-400/30">
+                    ⏳ {countdownText}
+                  </span>
+                );
+              })()}
+              {promoSettings.courseId && (
+                <button
+                  onClick={() => {
+                    setActiveTab('courses');
+                  }}
+                  className="ml-2 bg-white text-orange-600 hover:bg-orange-50 px-2.5 py-0.5 rounded-lg transition-all"
+                >
+                  View Course
+                </button>
+              )}
+              {promoSettings.linkUrl && (
+                <a
+                  href={promoSettings.linkUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-2 bg-white text-orange-600 hover:bg-orange-50 px-2.5 py-0.5 rounded-lg transition-all inline-flex items-center gap-1"
+                >
+                  Learn More <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+            </div>
+            <button 
+              onClick={() => setIsPromoDismissed(true)}
+              className="text-white/80 hover:text-white hover:bg-white/10 w-6 h-6 flex items-center justify-center rounded-full transition-colors font-black text-sm"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {/* Mobile Header (Only visible on non-dashboard tabs if needed, or always) */}
         <div className="md:hidden flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
@@ -3613,8 +3864,8 @@ export default function StaffPortal({ user, onLogout }) {
           { id: 'insights', icon: BarChart2, label: 'Insights' },
           { id: 'courses', icon: BookOpen, label: 'Courses' },
           { id: 'students', icon: Users, label: 'Students' },
-          { id: 'revenue', icon: Wallet, label: 'Revenue' },
-          { id: 'profile', icon: User, label: 'Profile' }
+          { id: 'reviews', icon: MessageSquare, label: 'Reviews' },
+          { id: 'revenue', icon: Wallet, label: 'Revenue' }
         ].map((item, idx) => (
           <motion.button
             key={item.id}

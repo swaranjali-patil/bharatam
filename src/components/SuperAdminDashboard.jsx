@@ -43,7 +43,8 @@ import {
   MessageSquare,
   Inbox,
   AlertCircle,
-  Printer
+  Printer,
+  X
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, doc, updateDoc, onSnapshot, addDoc, setDoc, deleteDoc, getDocs, serverTimestamp } from 'firebase/firestore';
@@ -55,6 +56,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [activeTab, setActiveTab] = useState('overview');
   const [approvalTab, setApprovalTab] = useState('all'); // all, pending, approved_courses
   const [peopleTab, setPeopleTab] = useState('students'); // 'students' or 'trainers'
+  const [selectedInspectUser, setSelectedInspectUser] = useState(null);
+  const [inspectActiveTab, setInspectActiveTab] = useState('courses'); // 'courses' | 'finance' | 'activity'
   const [transactionSubTab, setTransactionSubTab] = useState('transactions'); // transactions, withdrawals, trainer_wallet
   const [transactionMenuOpen, setTransactionMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,9 +88,20 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [newAdForm, setNewAdForm] = useState({ title: '', imageUrl: '', linkUrl: '' });
   const [withdrawalsList, setWithdrawalsList] = useState([]);
   const [trainerWalletsList, setTrainerWalletsList] = useState([]);
+  const [reviewsList, setReviewsList] = useState([]);
+  const [reviewSearchQuery, setReviewSearchQuery] = useState('');
 
   // Check if user is super admin
   const isSuperAdmin = user?.role === 'superadmin' || user?.role === 'super_admin' || user?.isSuperAdmin === true;
+
+  const getJoinDate = (createdAt) => {
+    if (!createdAt) return '—';
+    try {
+      const d = createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt);
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch { return '—'; }
+  };
+
   const [coursesList, setCoursesList] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [learnersList, setLearnersList] = useState([]);
@@ -158,6 +172,12 @@ export default function SuperAdminDashboard({ user, onLogout }) {
   const [approveCommissionInput, setApproveCommissionInput] = useState('');
   const [useCustomCommission, setUseCustomCommission] = useState(false);
 
+  // Global Promotion Notification States
+  const [promoSettings, setPromoSettings] = useState({ enabled: false, message: '', courseId: '', linkUrl: '', endsAt: '' });
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [promoForm, setPromoForm] = useState({ enabled: false, message: '', courseId: '', linkUrl: '', endsAt: '' });
+  const [isPromoDismissed, setIsPromoDismissed] = useState(false);
+
   // Date Filter States for Transactions
   const [txStartDate, setTxStartDate] = useState('');
   const [txEndDate, setTxEndDate] = useState('');
@@ -215,6 +235,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     { id: 'overview', icon: LayoutDashboard, label: 'Overview' },
     { id: 'approvals', icon: CheckSquare, label: 'Approvals' },
     { id: 'people', icon: Users, label: 'People' },
+    { id: 'reviews', icon: MessageSquare, label: 'Course Reviews' },
     {
       id: 'transactions_group',
       icon: CreditCard,
@@ -499,6 +520,13 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         if (typeof data.commissionRate === 'number') {
           setGlobalCommission(data.commissionRate);
         }
+        setPromoSettings({
+          enabled: data.promoEnabled || false,
+          message: data.promoMessage || '',
+          courseId: data.promoCourseId || '',
+          linkUrl: data.promoLinkUrl || '',
+          endsAt: data.promoEndsAt || ''
+        });
       }
     }, (err) => {
       console.error('Error fetching settings:', err);
@@ -523,6 +551,19 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       console.error('Error fetching policies:', err);
     });
 
+    const unsubscribeReviews = onSnapshot(collection(db, "bharatam_reviews"), (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      data.sort((a, b) => {
+        const aT = a.createdAt?.seconds ? a.createdAt.seconds : new Date(a.createdAt || 0).getTime() / 1000;
+        const bT = b.createdAt?.seconds ? b.createdAt.seconds : new Date(b.createdAt || 0).getTime() / 1000;
+        return bT - aT;
+      });
+      setReviewsList(data);
+    }, (err) => {
+      console.error('Error fetching reviews:', err);
+      setReviewsList([]);
+    });
+
     return () => {
       unsubscribeCourses();
       unsubscribeUsers();
@@ -538,6 +579,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       unsubscribeSupportFaqs();
       unsubscribeSettings();
       unsubscribePolicies();
+      unsubscribeReviews();
     };
   }, []);
 
@@ -769,6 +811,29 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     } catch (err) {
       console.error("Failed to save global commission:", err);
       alert("Failed to save commission rate: " + err.message);
+    }
+  };
+
+  const handleSaveGlobalPromo = async () => {
+    try {
+      if (promoForm.enabled && !promoForm.message.trim()) {
+        alert("Please enter a promotion message when enabled.");
+        return;
+      }
+      const settingsRef = doc(db, 'bharatam_settings', 'global');
+      await setDoc(settingsRef, {
+        promoEnabled: promoForm.enabled,
+        promoMessage: promoForm.message.trim(),
+        promoCourseId: promoForm.courseId || '',
+        promoLinkUrl: promoForm.linkUrl.trim() || '',
+        promoEndsAt: promoForm.endsAt || '',
+        promoUpdatedAt: new Date()
+      }, { merge: true });
+      setIsPromoModalOpen(false);
+      alert("Global course promotion notification settings saved successfully!");
+    } catch (err) {
+      console.error("Failed to save global promo announcement settings:", err);
+      alert("Failed to save promo: " + err.message);
     }
   };
 
@@ -3012,6 +3077,64 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
         {/* Main Content */}
         <main className="flex-1 min-w-0 overflow-y-auto pb-24 md:pb-0 relative md:ml-64">
+          {promoSettings.enabled && !isPromoDismissed && (!promoSettings.endsAt || new Date(promoSettings.endsAt) > new Date()) && (
+            <div className="bg-gradient-to-r from-orange-600 to-amber-500 text-white px-4 py-2.5 flex items-center justify-between text-xs font-bold shadow-md relative z-40 transition-all">
+              <div className="flex-1 flex items-center justify-center gap-2 flex-wrap">
+                <span className="bg-white/20 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">Promotion</span>
+                <span>{promoSettings.message}</span>
+                {(() => {
+                  if (!promoSettings.endsAt) return null;
+                  const diffMs = new Date(promoSettings.endsAt) - new Date();
+                  if (diffMs <= 0) return null;
+                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                  let countdownText = '';
+                  if (diffDays >= 1) {
+                    countdownText = `${diffDays + 1} days left`;
+                  } else {
+                    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+                    if (diffHours >= 1) {
+                      countdownText = `${diffHours} hours left`;
+                    } else {
+                      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+                      countdownText = `${diffMinutes} mins left`;
+                    }
+                  }
+                  return (
+                    <span className="bg-red-500/80 px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-black flex items-center gap-1 animate-pulse border border-red-400/30">
+                      ⏳ {countdownText}
+                    </span>
+                  );
+                })()}
+                {promoSettings.courseId && (
+                  <button
+                    onClick={() => {
+                      setActiveTab('approvals');
+                    }}
+                    className="ml-2 bg-white text-orange-600 hover:bg-orange-50 px-2.5 py-0.5 rounded-lg transition-all"
+                  >
+                    View Details
+                  </button>
+                )}
+                {promoSettings.linkUrl && (
+                  <a
+                    href={promoSettings.linkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 bg-white text-orange-600 hover:bg-orange-50 px-2.5 py-0.5 rounded-lg transition-all inline-flex items-center gap-1"
+                  >
+                    Learn More <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+              </div>
+              <button 
+                onClick={() => setIsPromoDismissed(true)}
+                className="text-white/80 hover:text-white hover:bg-white/10 p-1 rounded-full transition-colors"
+              >
+                <XCircle className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           <header className="bg-white/90 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-4 sticky top-0 z-30">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div className="min-w-0">
@@ -3657,14 +3780,6 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
                     const avatarColors = ['bg-violet-100 text-violet-600', 'bg-blue-100 text-blue-600', 'bg-emerald-100 text-emerald-600', 'bg-amber-100 text-amber-600', 'bg-rose-100 text-rose-600', 'bg-indigo-100 text-indigo-600'];
 
-                    const getJoinDate = (createdAt) => {
-                      if (!createdAt) return '—';
-                      try {
-                        const d = createdAt.seconds ? new Date(createdAt.seconds * 1000) : new Date(createdAt);
-                        return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-                      } catch { return '—'; }
-                    };
-
                     return (
                       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
@@ -3698,7 +3813,14 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                                   const initials = (person.fullName || person.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
                                   const colorClass = avatarColors[idx % avatarColors.length];
                                   return (
-                                    <tr key={person.id} className="hover:bg-gray-50/60 transition-colors group">
+                                    <tr 
+                                      key={person.id} 
+                                      onClick={() => {
+                                        setSelectedInspectUser(person);
+                                        setInspectActiveTab(peopleTab === 'students' ? 'enrollments' : 'courses');
+                                      }}
+                                      className="hover:bg-slate-50/80 cursor-pointer transition-colors group"
+                                    >
                                       {/* # */}
                                       <td className="px-5 py-3.5 text-xs font-bold text-gray-300 w-10">{idx + 1}</td>
 
@@ -3761,7 +3883,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                                       {/* Action */}
                                       <td className="px-5 py-3.5 text-right">
                                         <button
-                                          onClick={() => handleBlockUser(person.id, person.isBlocked)}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleBlockUser(person.id, person.isBlocked);
+                                          }}
                                           className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 ${person.isBlocked
                                               ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
                                               : 'bg-red-50 text-red-500 hover:bg-red-100'
@@ -3798,6 +3923,141 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                       </div>
                     );
                   })()}
+                </motion.div>
+              )}
+
+              {activeTab === 'reviews' && (
+                <motion.div
+                  key="reviews"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-6"
+                >
+                  {/* Reviews Stats Deck */}
+                  {(() => {
+                    const totalReviews = reviewsList.length;
+                    const avgRating = totalReviews > 0
+                      ? (reviewsList.reduce((s, r) => s + (Number(r.rating) || 0), 0) / totalReviews).toFixed(1)
+                      : '0.0';
+                    const poorReviews = reviewsList.filter(r => (Number(r.rating) || 0) <= 2).length;
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {[
+                          { label: 'Average Course Rating', value: `${avgRating} ★`, sub: 'Out of 5 Stars', color: 'text-amber-500', bg: 'bg-amber-50 border-amber-100', icon: '⭐️' },
+                          { label: 'Total Student Reviews', value: totalReviews, sub: 'All-Time Feedback', color: 'text-indigo-600', bg: 'bg-indigo-50 border-indigo-100', icon: '💬' },
+                          { label: 'Low Rating Flags', value: poorReviews, sub: '2-Star or lower reviews', color: 'text-rose-500', bg: 'bg-rose-50 border-rose-100', icon: '⚠️' }
+                        ].map((stat, i) => (
+                          <div key={i} className={`bg-white rounded-2xl p-5 border shadow-sm flex items-center gap-3.5 ${stat.bg}`}>
+                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 border bg-white ${stat.color}`}>{stat.icon}</div>
+                            <div>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
+                              <p className="text-2xl font-black text-slate-900 leading-tight mt-0.5">{stat.value}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Search Bar */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3">
+                    <div className="relative w-full">
+                      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
+                      <input
+                        type="text"
+                        placeholder="Search reviews by course, student, or feedback comment..."
+                        value={reviewSearchQuery}
+                        onChange={e => setReviewSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm font-semibold text-gray-700 placeholder:text-gray-300 outline-none focus:border-orange-300 focus:bg-white transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Reviews Feed */}
+                  <div className="space-y-4">
+                    {(() => {
+                      const filtered = reviewsList.filter(r => {
+                        const q = reviewSearchQuery.toLowerCase();
+                        return !q ||
+                          (r.courseTitle || '').toLowerCase().includes(q) ||
+                          (r.studentName || '').toLowerCase().includes(q) ||
+                          (r.comment || '').toLowerCase().includes(q);
+                      });
+
+                      const avatarColors = ['bg-orange-50 text-orange-600', 'bg-blue-50 text-blue-600', 'bg-emerald-50 text-emerald-600', 'bg-amber-50 text-amber-600', 'bg-violet-50 text-violet-600', 'bg-indigo-50 text-indigo-600'];
+
+                      if (filtered.length === 0) {
+                        return (
+                          <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center shadow-sm">
+                            <span className="text-4xl block mb-2">⭐</span>
+                            <p className="text-sm font-bold text-slate-400">No course reviews matching search filters.</p>
+                          </div>
+                        );
+                      }
+
+                      return filtered.map((rev, idx) => {
+                        const initials = (rev.studentName || 'Learner').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                        const colorClass = avatarColors[idx % avatarColors.length];
+                        const stars = Array.from({ length: 5 }, (_, i) => i < (Number(rev.rating) || 5) ? '★' : '☆').join(' ');
+
+                        return (
+                          <div key={rev.id} className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm hover:shadow-md transition-all duration-300 relative group">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3.5">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${colorClass}`}>
+                                  {initials}
+                                </div>
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h4 className="text-sm font-black text-slate-900">{rev.studentName || 'Learner'}</h4>
+                                    <span className="bg-slate-50 border border-slate-100 text-slate-600 rounded px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                                      📚 {rev.courseTitle || 'Vedic Math'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <span className="text-amber-500 font-extrabold text-sm tracking-widest">{stars}</span>
+                                    <span className="text-[10px] font-semibold text-slate-400">
+                                      {getJoinDate(rev.createdAt)}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm font-semibold text-slate-700 mt-3 leading-relaxed">
+                                    {rev.comment}
+                                  </p>
+
+                                  {/* Instructor reply bubble */}
+                                  {rev.reply && (
+                                    <div className="mt-4 bg-orange-50/50 border border-orange-100 rounded-xl p-3 relative">
+                                      <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest">Instructor Response</p>
+                                      <p className="text-xs font-semibold text-slate-700 mt-1">{rev.reply}</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm("Are you sure you want to delete this review from the database?")) {
+                                    try {
+                                      await deleteDoc(doc(db, 'bharatam_reviews', rev.id));
+                                    } catch (err) {
+                                      console.error("Failed to delete review", err);
+                                      alert("Failed to delete review");
+                                    }
+                                  }
+                                }}
+                                className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-2 text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-100 rounded-xl transition-all active:scale-95 flex-shrink-0"
+                                title="Remove Review"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 </motion.div>
               )}
 
@@ -4430,9 +4690,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                           iconBg: 'bg-violet-50',
                           iconColor: 'text-violet-500',
                           title: 'Global Notifications',
-                          desc: 'Broadcast alerts to all platform users',
-                          badge: null,
-                          badgeColor: '',
+                          desc: promoSettings.enabled ? `Active Promo: "${promoSettings.message.slice(0, 30)}..."` : 'Broadcast alerts to all platform users',
+                          badge: promoSettings.enabled ? 'Active' : 'Off',
+                          badgeColor: promoSettings.enabled ? 'bg-violet-100 text-violet-600 border border-violet-200' : 'bg-slate-100 text-slate-500 border border-slate-200',
                         },
                         {
                           id: 'categories',
@@ -4457,6 +4717,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                             } else if (item.id === 'policies') {
                               setPoliciesInput({ ...policies });
                               setIsPoliciesModalOpen(true);
+                            } else if (item.id === 'notifications') {
+                              setPromoForm({ ...promoSettings });
+                              setIsPromoModalOpen(true);
                             }
                           }}
                           className="flex items-start gap-4 p-5 bg-white border border-slate-200 rounded-2xl hover:border-orange-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 text-left group"
@@ -6186,6 +6449,343 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         </AnimatePresence>
 
         <AnimatePresence>
+          {selectedInspectUser && (() => {
+            const person = selectedInspectUser;
+            const isTrainer = (person.role || '').toLowerCase() === 'trainer';
+            
+            // 1. Calculate specific numbers based on real database records
+            const personCourses = coursesList.filter(c => c.trainerId === person.id || c.trainerName === (person.fullName || person.name));
+            const personPurchases = purchasesList.filter(p => p.userId === person.id || p.studentEmail === person.email);
+            const personWithdrawals = withdrawalsList.filter(w => w.trainerId === person.id);
+
+            // 2. Aggregate figures
+            const totalSpent = personPurchases.reduce((s, p) => s + getPurchaseAmount(p), 0);
+            
+            let trainerRevenue = 0;
+            let trainerCommissionCut = 0;
+            personCourses.forEach(c => {
+              // Find purchases for this course
+              const coursePurchases = purchasesList.filter(p => p.courseId === c.id);
+              coursePurchases.forEach(p => {
+                const amt = getPurchaseAmount(p);
+                const comm = typeof p.commission === 'number'
+                  ? p.commission
+                  : (typeof c.commission === 'number' ? c.commission : globalCommission);
+                trainerRevenue += amt;
+                trainerCommissionCut += Math.round((amt * comm) / 100);
+              });
+            });
+
+            return (
+              <div className="fixed inset-0 z-[150] overflow-hidden flex justify-end">
+                {/* Backdrop overlay */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.6 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setSelectedInspectUser(null)}
+                  className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                />
+
+                {/* Sliding panel */}
+                <motion.div
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '100%' }}
+                  transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+                  className="relative max-w-xl sm:max-w-2xl w-full h-full bg-[#f8fafc] border-l border-slate-100 shadow-2xl flex flex-col z-10"
+                >
+                  {/* Header Banner */}
+                  <div className="bg-white border-b border-slate-100 p-6 sm:p-7 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50/50 rounded-full blur-3xl pointer-events-none" />
+                    
+                    <div className="flex items-start justify-between relative z-10">
+                      <div className="flex items-center gap-4.5">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl overflow-hidden shadow-sm border ${
+                          isTrainer 
+                            ? 'bg-gradient-to-br from-orange-500 to-amber-500 border-orange-200 text-white' 
+                            : 'bg-gradient-to-br from-blue-500 to-indigo-500 border-blue-200 text-white'
+                        }`}>
+                          {person.profileUrl
+                            ? <img src={person.profileUrl} alt="" className="w-full h-full object-cover" />
+                            : (person.fullName || person.name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+                          }
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">{person.fullName || person.name}</h3>
+                            <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                              isTrainer 
+                                ? 'bg-orange-50 border-orange-100 text-orange-600' 
+                                : 'bg-blue-50 border-blue-100 text-blue-600'
+                            }`}>
+                              {isTrainer ? '🏫 Trainer' : '🎓 Student'}
+                            </span>
+                          </div>
+                          <p className="text-xs font-semibold text-slate-400 mt-1 flex items-center gap-1.5">{person.email}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-300" /> Joined {getJoinDate(person.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setSelectedInspectUser(null)}
+                        className="p-2 hover:bg-slate-50 border border-slate-100 hover:border-slate-200 rounded-xl transition-all shadow-sm bg-white"
+                      >
+                        <X className="w-4 h-4 text-slate-400 hover:text-slate-700" />
+                      </button>
+                    </div>
+
+                    {/* Quick Stats Grid */}
+                    <div className="grid grid-cols-3 gap-3.5 mt-6 bg-slate-50/70 border border-slate-100 p-4 rounded-2xl">
+                      {isTrainer ? (
+                        <>
+                          <div className="text-center sm:text-left">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Active Courses</p>
+                            <p className="text-lg font-black text-slate-900 mt-0.5">{personCourses.length}</p>
+                          </div>
+                          <div className="text-center sm:text-left border-l border-slate-200/60 pl-3.5">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Total Sales</p>
+                            <p className="text-lg font-black text-emerald-600 mt-0.5">₹{trainerRevenue.toLocaleString()}</p>
+                          </div>
+                          <div className="text-center sm:text-left border-l border-slate-200/60 pl-3.5">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Platform Cut</p>
+                            <p className="text-lg font-black text-rose-500 mt-0.5">₹{trainerCommissionCut.toLocaleString()}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-center sm:text-left">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Enrolled Courses</p>
+                            <p className="text-lg font-black text-slate-900 mt-0.5">{personPurchases.length}</p>
+                          </div>
+                          <div className="text-center sm:text-left border-l border-slate-200/60 pl-3.5">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Total Spent</p>
+                            <p className="text-lg font-black text-indigo-600 mt-0.5">₹{totalSpent.toLocaleString()}</p>
+                          </div>
+                          <div className="text-center sm:text-left border-l border-slate-200/60 pl-3.5">
+                            <p className="text-[9px] font-extrabold text-slate-400 uppercase tracking-wider">Account Status</p>
+                            <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase mt-1 px-2.5 py-0.5 rounded-md border ${
+                              person.isBlocked ? 'bg-red-50 border-red-100 text-red-500' : 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                            }`}>
+                              <span className={`w-1.5 h-1.5 rounded-full ${person.isBlocked ? 'bg-red-400' : 'bg-emerald-400'}`} />
+                              {person.isBlocked ? 'Blocked' : 'Active'}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tabs Selector */}
+                  <div className="bg-white px-6 py-3 border-b border-slate-100 flex justify-center sm:justify-start">
+                    <div className="flex bg-slate-100/80 p-1 rounded-xl w-full sm:w-auto gap-1">
+                      {isTrainer ? (
+                        <>
+                          <button
+                            onClick={() => setInspectActiveTab('courses')}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+                              inspectActiveTab === 'courses' 
+                                ? 'bg-white text-slate-900 shadow-sm border border-slate-200/40' 
+                                : 'text-slate-400 hover:text-slate-700'
+                            }`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            Courses ({personCourses.length})
+                          </button>
+                          <button
+                            onClick={() => setInspectActiveTab('finance')}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+                              inspectActiveTab === 'finance' 
+                                ? 'bg-white text-slate-900 shadow-sm border border-slate-200/40' 
+                                : 'text-slate-400 hover:text-slate-700'
+                            }`}
+                          >
+                            <ArrowDownLeft className="w-3.5 h-3.5" />
+                            Withdrawals ({personWithdrawals.length})
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setInspectActiveTab('enrollments')}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+                              inspectActiveTab === 'enrollments' 
+                                ? 'bg-white text-slate-900 shadow-sm border border-slate-200/40' 
+                                : 'text-slate-400 hover:text-slate-700'
+                            }`}
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            Enrolled ({personPurchases.length})
+                          </button>
+                          <button
+                            onClick={() => setInspectActiveTab('finance')}
+                            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+                              inspectActiveTab === 'finance' 
+                                ? 'bg-white text-slate-900 shadow-sm border border-slate-200/40' 
+                                : 'text-slate-400 hover:text-slate-700'
+                            }`}
+                          >
+                            <CreditCard className="w-3.5 h-3.5" />
+                            Invoices ({personPurchases.length})
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Tab Scroll Content */}
+                  <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                    {inspectActiveTab === 'courses' && (
+                      <div className="space-y-3.5">
+                        {personCourses.length === 0 ? (
+                          <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-sm">
+                            <span className="text-4xl block mb-2">📚</span>
+                            <p className="text-sm font-bold text-slate-400">No courses created yet.</p>
+                          </div>
+                        ) : (
+                          personCourses.map(c => (
+                            <div key={c.id} className="bg-white rounded-2xl border border-slate-100 hover:border-slate-200/80 hover:shadow-md transition-all duration-300 p-4 flex items-center justify-between group">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center transition-transform group-hover:scale-105">
+                                  {c.thumbnail 
+                                    ? <img src={c.thumbnail} alt="" className="w-full h-full object-cover" />
+                                    : <span className="text-xl">🎓</span>
+                                  }
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-orange-500 transition-colors">{c.title}</h4>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="bg-slate-50 border border-slate-100 text-slate-600 rounded-md px-2 py-0.5 text-[9px] font-black uppercase tracking-wider">
+                                      {c.subject || c.category || 'General'}
+                                    </span>
+                                    <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider border ${
+                                      c.status === 'Approved' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600'
+                                    }`}>
+                                      {c.status || 'Pending'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-black text-slate-900">₹{Number(c.price || 0).toLocaleString()}</p>
+                                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-slate-400 mt-1">
+                                  Fee: <span className="font-extrabold text-orange-500">{c.commission !== undefined && c.commission !== null ? `${c.commission}%` : `${globalCommission}%`}</span>
+                                </span>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    {inspectActiveTab === 'enrollments' && (
+                      <div className="space-y-3.5">
+                        {personPurchases.length === 0 ? (
+                          <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-sm">
+                            <span className="text-4xl block mb-2">📚</span>
+                            <p className="text-sm font-bold text-slate-400">Not enrolled in any courses yet.</p>
+                          </div>
+                        ) : (
+                          personPurchases.map(p => {
+                            const matchedC = coursesList.find(c => c.id === p.courseId);
+                            return (
+                              <div key={p.id} className="bg-white rounded-2xl border border-slate-100 hover:border-slate-200/80 hover:shadow-md transition-all duration-300 p-4 flex items-center justify-between group">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 bg-slate-50 border border-slate-100 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center transition-transform group-hover:scale-105">
+                                    {(matchedC && matchedC.thumbnail)
+                                      ? <img src={matchedC.thumbnail} alt="" className="w-full h-full object-cover" />
+                                      : <span className="text-xl">🎓</span>
+                                    }
+                                  </div>
+                                  <div>
+                                    <h4 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-blue-500 transition-colors">{p.courseTitle || matchedC?.title || 'Course Package'}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-1.5 flex items-center gap-1">
+                                      <Clock className="w-3.5 h-3.5 text-slate-300" /> Enrolled {getJoinDate(p.createdAt)}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                    Studying
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+
+                    {inspectActiveTab === 'finance' && (
+                      <div className="space-y-3.5">
+                        {isTrainer ? (
+                          // Trainer Payouts
+                          personWithdrawals.length === 0 ? (
+                            <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-sm">
+                              <span className="text-4xl block mb-2">💸</span>
+                              <p className="text-sm font-bold text-slate-400">No withdrawal claims filed yet.</p>
+                            </div>
+                          ) : (
+                            personWithdrawals.map(w => (
+                              <div key={w.id} className="bg-white rounded-2xl border border-slate-100 hover:border-slate-200/80 hover:shadow-md transition-all duration-300 p-4 flex items-center justify-between">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-bold text-slate-800">Bank Withdrawal</h4>
+                                    <span className={`px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded-md border ${
+                                      w.status === 'approved' 
+                                        ? 'bg-emerald-50 border-emerald-100 text-emerald-600' 
+                                        : w.status === 'rejected' 
+                                          ? 'bg-rose-50 border-rose-100 text-rose-500' 
+                                          : 'bg-amber-50 border-amber-100 text-amber-600'
+                                    }`}>
+                                      {w.status || 'Pending'}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] font-bold text-slate-400 mt-1.5 flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-slate-300" /> Filed: {getJoinDate(w.createdAt)} {w.bankAccount && `· A/C ****${String(w.bankAccount).slice(-4)}`}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-black text-slate-900">₹{Number(w.amount || 0).toLocaleString()}</p>
+                                </div>
+                              </div>
+                            ))
+                          )
+                        ) : (
+                          // Student Purchases
+                          personPurchases.length === 0 ? (
+                            <div className="bg-white rounded-2xl border border-slate-100 p-12 text-center shadow-sm">
+                              <span className="text-4xl block mb-2">🧾</span>
+                              <p className="text-sm font-bold text-slate-400">No transaction history available.</p>
+                            </div>
+                          ) : (
+                            personPurchases.map(p => (
+                              <div key={p.id} className="bg-white rounded-2xl border border-slate-100 hover:border-slate-200/80 hover:shadow-md transition-all duration-300 p-4 flex items-center justify-between group">
+                                <div>
+                                  <h4 className="text-sm font-bold text-slate-800 tracking-tight group-hover:text-indigo-500 transition-colors">{p.courseTitle || 'Banking Course'}</h4>
+                                  <p className="text-[10px] font-bold text-slate-400 mt-1.5 flex items-center gap-1">
+                                    Invoice: {getJoinDate(p.createdAt)} · {p.paymentMethod || 'Online Pay'}
+                                  </p>
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-black text-emerald-600">₹{Number(p.amount || p.price || 0).toLocaleString()}</p>
+                                </div>
+                              </div>
+                            ))
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+            );
+          })()}
+        </AnimatePresence>
+
+        <AnimatePresence>
           {isManageAdsOpen && (
             <motion.div
               initial={{ opacity: 0, y: 30 }}
@@ -6334,6 +6934,127 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                   </button>
                   <button
                     onClick={handleSaveGlobalCommission}
+                    className="flex-1 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-black transition-colors shadow-md shadow-orange-100"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── Global Promotion Notification Modal ── */}
+        <AnimatePresence>
+          {isPromoModalOpen && (
+            <motion.div
+              key="global-promo-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+              onClick={(e) => { if (e.target === e.currentTarget) setIsPromoModalOpen(false); }}
+            >
+              <motion.div
+                key="global-promo-modal"
+                initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 16 }}
+                className="w-full max-w-lg bg-white rounded-[2rem] p-6 shadow-2xl border border-slate-100 flex flex-col gap-6 relative"
+              >
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <h3 className="text-lg font-black text-slate-900">Course Promotion Banner</h3>
+                  <button 
+                    onClick={() => setIsPromoModalOpen(false)}
+                    className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+                  >
+                    <XCircle className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                    Set up a platform-wide floating promotion notification bar at the top of the dashboard page to promote premium courses or make site announcements.
+                  </p>
+
+                  {/* Toggle Switch */}
+                  <div className="flex items-center justify-between p-3.5 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div>
+                      <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider">Show Promo Banner</h4>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Toggle to show/hide this announcement bar</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={promoForm.enabled} 
+                        onChange={(e) => setPromoForm(prev => ({ ...prev, enabled: e.target.checked }))}
+                        className="sr-only peer" 
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                    </label>
+                  </div>
+
+                  {/* Message Input */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Promotion Announcement Message</label>
+                    <textarea
+                      rows="3"
+                      value={promoForm.message}
+                      onChange={(e) => setPromoForm(prev => ({ ...prev, message: e.target.value }))}
+                      placeholder="e.g. 🚀 Special Offer: Master Quantitative Aptitude with shortcuts! Flat 50% discount ends today."
+                      className="w-full text-xs font-semibold p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-orange-500 focus:bg-white transition-all resize-none"
+                    />
+                  </div>
+
+                  {/* Course Dropdown Selector */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Link to Course (Optional)</label>
+                    <select
+                      value={promoForm.courseId}
+                      onChange={(e) => setPromoForm(prev => ({ ...prev, courseId: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-600 outline-none focus:border-orange-500 focus:bg-white transition-all cursor-pointer"
+                    >
+                      <option value="">No Course Link (Announcement Only)</option>
+                      {coursesList.filter(c => c.approvalStatus === 'approved' || c.status === 'Approved').map(c => (
+                        <option key={c.id} value={c.id}>{c.title} (by {c.trainerName || 'Trainer'})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Redirect Link URL */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">External Promo URL Link (Optional)</label>
+                    <input
+                      type="url"
+                      value={promoForm.linkUrl}
+                      onChange={(e) => setPromoForm(prev => ({ ...prev, linkUrl: e.target.value }))}
+                      placeholder="https://example.com/promotion"
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-600 outline-none focus:border-orange-500 focus:bg-white transition-all"
+                    />
+                  </div>
+
+                  {/* Expiration Date/Time */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider">Promotion Expiration Date & Time (Optional)</label>
+                    <input
+                      type="datetime-local"
+                      value={promoForm.endsAt}
+                      onChange={(e) => setPromoForm(prev => ({ ...prev, endsAt: e.target.value }))}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-semibold text-slate-600 outline-none focus:border-orange-500 focus:bg-white transition-all cursor-pointer"
+                    />
+                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Displays a dynamic countdown (e.g. "3 days remaining") and automatically hides after this date.</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-2">
+                  <button
+                    onClick={() => setIsPromoModalOpen(false)}
+                    className="flex-1 py-3.5 rounded-2xl border border-slate-200 text-sm font-bold text-slate-500 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveGlobalPromo}
                     className="flex-1 py-3.5 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-black transition-colors shadow-md shadow-orange-100"
                   >
                     Save Changes
