@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { LogOut, User, Phone, Building, CreditCard, Save, Wallet, Users, Library, BarChart2, BookOpen, Plus, Upload, ArrowLeft, ArrowRight, ChevronDown, Video, FileText, Trash2, CheckCircle, Users as Users2, Clock, File, Image, History, TrendingUp, CheckCircle as CheckCircle2, Camera, Mail, Search, SlidersHorizontal, Download, ExternalLink, Eye, EyeOff, ChevronRight, Check, Percent, TrendingDown, MessageSquare } from 'lucide-react';
+import { LogOut, User, Phone, Building, CreditCard, Save, Wallet, Users, Library, BarChart2, BookOpen, Plus, Upload, ArrowLeft, ArrowRight, ChevronDown, Video, FileText, Trash2, CheckCircle, Users as Users2, Clock, File, Image, History, TrendingUp, CheckCircle as CheckCircle2, Camera, Mail, Search, SlidersHorizontal, Download, ExternalLink, Eye, EyeOff, ChevronRight, Check, Percent, TrendingDown, MessageSquare, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, getDoc, arrayUnion, arrayRemove, setDoc, writeBatch, onSnapshot, serverTimestamp } from 'firebase/firestore';
@@ -709,10 +709,33 @@ export default function StaffPortal({ user, onLogout }) {
             console.warn("Failed to fetch subcollection pdfs:", e);
           }
 
+          // Fetch achievements subcollection
+          let subAchievements = [];
+          try {
+            const achievementsSnap = await getDocs(collection(db, "bharatam_courses", courseDoc.id, "achievements"));
+            const processAchievementDoc = d => {
+              const data = d.data();
+              return {
+                id: d.id,
+                title: data.fileName || data.title || '',
+                url: data.storageUrl || data.url || '',
+                contentType: data.contentType || 'achievement',
+                accessType: data.isFree ? 'free' : (data.accessType || 'paid'),
+                status: data.approvalStatus === 'approved' ? 'Approved' : (data.status === 'active' ? 'Approved' : (data.status || 'Pending')),
+                addedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : '',
+                ...data
+              };
+            };
+            subAchievements = achievementsSnap.docs.map(processAchievementDoc);
+          } catch (e) {
+            console.warn("Failed to fetch subcollection achievements:", e);
+          }
+
           return {
             ...mappedCourseData,
             videos: subVideos.length > 0 ? subVideos : (mappedCourseData.videos || []),
-            pdfs: subPdfs.length > 0 ? subPdfs : (mappedCourseData.pdfs || [])
+            pdfs: subPdfs.length > 0 ? subPdfs : (mappedCourseData.pdfs || []),
+            achievements: subAchievements.length > 0 ? subAchievements : (mappedCourseData.achievements || [])
           };
         }));
         
@@ -4252,8 +4275,9 @@ export default function StaffPortal({ user, onLogout }) {
         const courseVideos = currentCourse.videos || [];
         const coursePdfs = currentCourse.pdfs || [];
         const courseImages = currentCourse.images || [];
-        const totalUploads = courseVideos.length + coursePdfs.length + courseImages.length;
-        const allUploads = [...courseVideos, ...coursePdfs, ...courseImages];
+        const courseAchievements = currentCourse.achievements || [];
+        const totalUploads = courseVideos.length + coursePdfs.length + courseImages.length + courseAchievements.length;
+        const allUploads = [...courseVideos, ...coursePdfs, ...courseImages, ...courseAchievements];
 
         const handleUploadMedia = async () => {
           if (!mediaTitle.trim() && selectedMediaFiles.length === 0 && !mediaUrl.trim()) {
@@ -4266,6 +4290,7 @@ export default function StaffPortal({ user, onLogout }) {
           const updatedVideos = [...(targetCourse.videos || [])];
           const updatedPdfs = [...(targetCourse.pdfs || [])];
           const updatedImages = [...(targetCourse.images || [])];
+          const updatedAchievements = [...(targetCourse.achievements || [])];
 
           const uploadFile = async (file, folder) => {
             try {
@@ -4379,11 +4404,11 @@ export default function StaffPortal({ user, onLogout }) {
             } else {
               const file = selectedMediaFiles[0];
               if (!file) {
-                alert(`Please select a ${mediaContentType === 'image' ? 'image' : 'PDF'} file to upload`);
+                alert(`Please select a ${mediaContentType === 'image' ? 'image' : (mediaContentType === 'achievement' ? 'achievement' : 'PDF')} file to upload`);
                 return;
               }
 
-              const folder = mediaContentType === 'image' ? 'images' : 'pdfs';
+              const folder = mediaContentType === 'image' ? 'images' : (mediaContentType === 'achievement' ? 'achievements' : 'pdfs');
               let cdnUrl = '';
               try {
                 cdnUrl = await uploadFile(file, folder);
@@ -4397,13 +4422,14 @@ export default function StaffPortal({ user, onLogout }) {
               const subcolRefPdfs = collection(db, "bharatam_courses", mediaPanel.courseId, "pdfs");
               const subcolRefPdf = collection(db, "bharatam_courses", mediaPanel.courseId, "pdf");
               const subcolRefImages = collection(db, "bharatam_courses", mediaPanel.courseId, "images");
+              const subcolRefAchievements = collection(db, "bharatam_courses", mediaPanel.courseId, "achievements");
               
-              const targetSubcolRef = mediaContentType === 'pdf' ? subcolRefPdfs : subcolRefImages;
+              const targetSubcolRef = mediaContentType === 'pdf' ? subcolRefPdfs : (mediaContentType === 'achievement' ? subcolRefAchievements : subcolRefImages);
               const newDocRef = doc(targetSubcolRef);
               const generatedId = newDocRef.id;
               const itemOrder = mediaContentType === 'pdf'
                 ? getNextMediaOrder(updatedPdfs)
-                : getNextMediaOrder(updatedImages);
+                : (mediaContentType === 'achievement' ? getNextMediaOrder(updatedAchievements) : getNextMediaOrder(updatedImages));
 
               const newItem = {
                 id: generatedId,
@@ -4443,6 +4469,7 @@ export default function StaffPortal({ user, onLogout }) {
 
               if (mediaContentType === 'pdf') updatedPdfs.push(newItem);
               if (mediaContentType === 'image') updatedImages.push(newItem);
+              if (mediaContentType === 'achievement') updatedAchievements.push(newItem);
             }
 
             await updateDoc(courseRef, {
@@ -4453,7 +4480,7 @@ export default function StaffPortal({ user, onLogout }) {
 
             setCourses(prevCourses => prevCourses.map(c => {
               if (c.id !== mediaPanel.courseId) return c;
-              return { ...c, videos: updatedVideos, pdfs: updatedPdfs, images: updatedImages };
+              return { ...c, videos: updatedVideos, pdfs: updatedPdfs, images: updatedImages, achievements: updatedAchievements };
             }));
 
             setMediaTitle('');
@@ -4478,15 +4505,16 @@ export default function StaffPortal({ user, onLogout }) {
           const updatedVideos = itemType === 'video' ? (targetCourse.videos || []).filter(v => v.id !== itemId) : targetCourse.videos || [];
           const updatedPdfs = itemType === 'pdf' ? (targetCourse.pdfs || []).filter(p => p.id !== itemId) : targetCourse.pdfs || [];
           const updatedImages = itemType === 'image' ? (targetCourse.images || []).filter(i => i.id !== itemId) : targetCourse.images || [];
+          const updatedAchievements = itemType === 'achievement' ? (targetCourse.achievements || []).filter(a => a.id !== itemId) : targetCourse.achievements || [];
 
           try {
             // Ensure parent course doc exists before calling update/delete in a batch
             const courseSnap = await getDoc(courseRef);
             if (!courseSnap.exists()) {
               // Course doc missing — delete subcollection doc only and update local state
-              if (itemType === 'video' || itemType === 'pdf') {
+              if (itemType === 'video' || itemType === 'pdf' || itemType === 'achievement') {
                 try {
-                  const sub = itemType === 'video' ? 'videos' : 'pdfs';
+                  const sub = itemType === 'video' ? 'videos' : (itemType === 'achievement' ? 'achievements' : 'pdfs');
                   const mediaDocRef = doc(db, "bharatam_courses", mediaPanel.courseId, sub, itemId);
                   await deleteDoc(mediaDocRef);
                 } catch (subErr) {
@@ -4499,7 +4527,7 @@ export default function StaffPortal({ user, onLogout }) {
               // Update local state to remove item from UI even though parent doc is gone
               setCourses(prevCourses => prevCourses.map(c => {
                 if (c.id !== mediaPanel.courseId) return c;
-                return { ...c, videos: updatedVideos, pdfs: updatedPdfs, images: updatedImages };
+                return { ...c, videos: updatedVideos, pdfs: updatedPdfs, images: updatedImages, achievements: updatedAchievements };
               }));
               return;
             }
@@ -4509,8 +4537,8 @@ export default function StaffPortal({ user, onLogout }) {
               updatedAt: new Date()
             });
 
-            if (itemType === 'video' || itemType === 'pdf') {
-              const sub = itemType === 'video' ? 'videos' : 'pdfs';
+            if (itemType === 'video' || itemType === 'pdf' || itemType === 'achievement') {
+              const sub = itemType === 'video' ? 'videos' : (itemType === 'achievement' ? 'achievements' : 'pdfs');
               const mediaDocRef = doc(db, "bharatam_courses", mediaPanel.courseId, sub, itemId);
               batch.delete(mediaDocRef);
             }
@@ -4519,7 +4547,7 @@ export default function StaffPortal({ user, onLogout }) {
 
             setCourses(prevCourses => prevCourses.map(c => {
               if (c.id !== mediaPanel.courseId) return c;
-              return { ...c, videos: updatedVideos, pdfs: updatedPdfs, images: updatedImages };
+              return { ...c, videos: updatedVideos, pdfs: updatedPdfs, images: updatedImages, achievements: updatedAchievements };
             }));
           } catch (err) {
             console.error('Failed removing media (batch):', err);
@@ -4584,6 +4612,7 @@ export default function StaffPortal({ user, onLogout }) {
                         { type: 'video', icon: Video, label: 'Video' },
                         { type: 'pdf', icon: FileText, label: 'PDF' },
                         { type: 'image', icon: Image, label: 'Image' },
+                        { type: 'achievement', icon: Award, label: 'Achievement' },
                       ].map(tab => (
                         <button key={tab.type} type="button"
                           onClick={() => { setMediaContentType(tab.type); setSelectedMediaFiles([]); setMediaUrl(''); }}
@@ -4601,10 +4630,10 @@ export default function StaffPortal({ user, onLogout }) {
                     {/* Title */}
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">
-                        {mediaContentType === 'video' ? 'Video Title' : mediaContentType === 'pdf' ? 'PDF Title' : 'Image Title'}
+                        {mediaContentType === 'video' ? 'Video Title' : mediaContentType === 'pdf' ? 'PDF Title' : mediaContentType === 'achievement' ? 'Achievement Title' : 'Image Title'}
                       </label>
                       <input type="text" value={mediaTitle} onChange={e => setMediaTitle(e.target.value)}
-                        placeholder={mediaContentType === 'video' ? 'e.g. Chapter 1: Introduction' : mediaContentType === 'pdf' ? 'e.g. Lecture Notes' : 'e.g. Course Banner'}
+                        placeholder={mediaContentType === 'video' ? 'e.g. Chapter 1: Introduction' : mediaContentType === 'pdf' ? 'e.g. Lecture Notes' : mediaContentType === 'achievement' ? 'e.g. Course Certificate Template' : 'e.g. Course Banner'}
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-slate-800 placeholder:text-slate-300 outline-none focus:border-orange-400 focus:bg-white focus:ring-4 focus:ring-orange-100/40 transition-all shadow-sm"
                       />
                     </div>
@@ -4616,7 +4645,7 @@ export default function StaffPortal({ user, onLogout }) {
                         selectedMediaFiles.length > 0 ? 'border-orange-300 bg-orange-50/20' : 'border-slate-200 bg-slate-50 hover:border-orange-300 hover:bg-orange-50/10'
                       }`}>
                         <input type="file" className="hidden"
-                          accept={mediaContentType === 'video' ? 'video/*' : mediaContentType === 'pdf' ? 'application/pdf' : 'image/*'}
+                          accept={mediaContentType === 'video' ? 'video/*' : (mediaContentType === 'pdf' ? 'application/pdf' : (mediaContentType === 'achievement' ? 'application/pdf,image/*,application/zip' : 'image/*'))}
                           multiple={mediaContentType === 'video'}
                           onChange={e => setSelectedMediaFiles(Array.from(e.target.files || []))}
                         />
@@ -4635,7 +4664,9 @@ export default function StaffPortal({ user, onLogout }) {
                               <Upload className="w-5 h-5 text-slate-400" />
                             </div>
                             <p className="text-sm font-bold text-slate-700">Click to select file</p>
-                            <p className="text-[10px] font-black text-slate-400 tracking-wider uppercase mt-1">{mediaContentType === 'video' ? 'MP4, MOV, MKV' : mediaContentType === 'pdf' ? 'PDF only' : 'JPG, PNG, WebP'}</p>
+                            <p className="text-[10px] font-black text-slate-400 tracking-wider uppercase mt-1">{
+                              mediaContentType === 'video' ? 'MP4, MOV, MKV' : (mediaContentType === 'pdf' ? 'PDF only' : (mediaContentType === 'achievement' ? 'PDF, PNG, JPG, ZIP' : 'JPG, PNG, WebP'))
+                            }</p>
                           </div>
                         )}
                       </label>
@@ -4677,7 +4708,7 @@ export default function StaffPortal({ user, onLogout }) {
                       className="w-full flex items-center justify-center gap-2 py-4 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-all active:scale-[0.98] shadow-md shadow-orange-150 hover:shadow-lg hover:-translate-y-0.5"
                     >
                       <Upload className="w-4 h-4" />
-                      Upload {mediaContentType === 'video' ? 'Video' : mediaContentType === 'pdf' ? 'PDF' : 'Image'}
+                      Upload {mediaContentType === 'video' ? 'Video' : (mediaContentType === 'pdf' ? 'PDF' : (mediaContentType === 'achievement' ? 'Achievement' : 'Image'))}
                     </button>
                   </div>
                 </div>
@@ -4687,7 +4718,7 @@ export default function StaffPortal({ user, onLogout }) {
                   <div className="flex-shrink-0 px-8 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 bg-white shadow-sm">
                     <div>
                       <h3 className="text-base font-black text-slate-800 leading-tight">Uploaded Content</h3>
-                      <p className="text-xs font-semibold text-slate-400 mt-1">{allUploads.length} item{allUploads.length !== 1 ? 's' : ''} · {courseVideos.length} videos · {coursePdfs.length} PDFs</p>
+                      <p className="text-xs font-semibold text-slate-400 mt-1">{allUploads.length} item{allUploads.length !== 1 ? 's' : ''} · {courseVideos.length} videos · {coursePdfs.length} PDFs · {courseAchievements.length} achievements</p>
                     </div>
                     {/* Filter tabs */}
                     <div className="flex flex-wrap bg-slate-50 border border-slate-150 rounded-xl p-1 gap-1 w-full sm:w-auto">
@@ -4696,6 +4727,7 @@ export default function StaffPortal({ user, onLogout }) {
                         { key: 'video', label: 'Videos', count: courseVideos.length },
                         { key: 'pdf',   label: 'PDFs',   count: coursePdfs.length },
                         { key: 'image', label: 'Images', count: courseImages.length },
+                        { key: 'achievement', label: 'Achievements', count: courseAchievements.length },
                       ].map(tab => (
                         <button
                           key={tab.key}
@@ -4776,8 +4808,11 @@ export default function StaffPortal({ user, onLogout }) {
                                 return filtered.map((item, idx) => {
                                   const isVideo = item.contentType === 'video';
                                   const isPdf = item.contentType === 'pdf';
-                                  const typeColor = isVideo ? 'bg-blue-50 border-blue-100 text-blue-500' : isPdf ? 'bg-violet-50 border-violet-100 text-violet-500' : 'bg-emerald-50 border-emerald-100 text-emerald-500';
-                                  const TypeIcon = isVideo ? Video : isPdf ? FileText : Image;
+                                  const isAchievement = item.contentType === 'achievement';
+                                  const typeColor = isVideo 
+                                    ? 'bg-blue-50 border-blue-100 text-blue-500' 
+                                    : (isPdf ? 'bg-violet-50 border-violet-100 text-violet-500' : (isAchievement ? 'bg-cyan-50 border-cyan-100 text-cyan-500' : 'bg-emerald-50 border-emerald-100 text-emerald-500'));
+                                  const TypeIcon = isVideo ? Video : (isPdf ? FileText : (isAchievement ? Award : Image));
                                   const addedDate = item.addedAt ? (() => { try { const d = new Date(item.addedAt); return isNaN(d) ? '' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); } catch { return ''; } })() : '';
                                   return (
                                     <motion.tr key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.03 }} className="hover:bg-slate-50/50 transition-colors group">

@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   Settings,
+  Award,
   LogOut,
   ShieldCheck,
   TrendingUp,
@@ -334,10 +335,41 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           // ignore
         }
 
+        // Fetch achievements subcollection
+        let subAchievements = [];
+        try {
+          const achievementsSnap = await getDocs(collection(db, "bharatam_courses", courseDoc.id, "achievements"));
+          const processAchievementDoc = d => {
+            const data = d.data();
+            let status = 'Pending';
+            if (data.approvalStatus === 'approved' || data.status === 'active') {
+              status = 'Approved';
+            } else if (data.approvalStatus === 'rejected' || data.status === 'rejected') {
+              status = 'Rejected';
+            }
+
+            return {
+              id: d.id,
+              title: data.fileName || data.title || '',
+              url: data.storageUrl || data.url || '',
+              contentType: data.contentType || 'achievement',
+              accessType: data.isFree ? 'free' : (data.accessType || 'paid'),
+              status: status,
+              approvalStatus: data.approvalStatus || (status === 'Approved' ? 'approved' : 'pending'),
+              addedAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : data.createdAt) : '',
+              ...data
+            };
+          };
+          subAchievements = achievementsSnap.docs.map(processAchievementDoc);
+        } catch (e) {
+          // ignore
+        }
+
         return {
           ...mappedCourseData,
           videos: subVideos.length > 0 ? subVideos : (mappedCourseData.videos || []),
-          pdfs: subPdfs.length > 0 ? subPdfs : (mappedCourseData.pdfs || [])
+          pdfs: subPdfs.length > 0 ? subPdfs : (mappedCourseData.pdfs || []),
+          achievements: subAchievements.length > 0 ? subAchievements : (mappedCourseData.achievements || [])
         };
       }));
 
@@ -607,7 +639,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       setCoursesList(prev => prev.map(course => {
         if (course.id !== courseId) return course;
 
-        const mediaKey = type === 'video' ? 'videos' : 'pdfs';
+        const mediaKey = type === 'video' ? 'videos' : (type === 'achievement' ? 'achievements' : 'pdfs');
         const updatedMedia = (course[mediaKey] || []).map(m =>
           m.id === mediaId ? { ...m, status: newStatus, approvalStatus: newStatus === 'Approved' ? 'approved' : (newStatus === 'Rejected' ? 'rejected' : 'pending') } : m
         );
@@ -620,7 +652,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
       const course = coursesList.find(c => c.id === courseId);
       if (!course) return;
 
-      const mediaArray = type === 'video' ? course.videos : course.pdfs;
+      const mediaArray = type === 'video' ? course.videos : (type === 'achievement' ? course.achievements : course.pdfs);
       const updatedMedia = mediaArray.map(m =>
         m.id === mediaId
           ? {
@@ -635,7 +667,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
       // Update subcollection document
       try {
-        const mediaDocRef = doc(db, "bharatam_courses", courseId, type === 'video' ? 'videos' : 'pdfs', mediaId);
+        const subcol = type === 'video' ? 'videos' : (type === 'achievement' ? 'achievements' : 'pdfs');
+        const mediaDocRef = doc(db, "bharatam_courses", courseId, subcol, mediaId);
         await updateDoc(mediaDocRef, {
           approvalStatus: newStatus === 'Approved' ? 'approved' : (newStatus === 'Rejected' ? 'rejected' : 'pending'),
           approvedAt: newStatus === 'Approved' ? new Date() : null,
@@ -651,7 +684,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
         const localCourse = coursesList.find(c => c.id === courseId);
         const allVideosApproved = (localCourse?.videos || []).every(m => (m.id === mediaId ? (newStatus === 'Approved') : (m.status === 'Approved')));
         const allPdfsApproved = (localCourse?.pdfs || []).every(m => (m.id === mediaId ? (newStatus === 'Approved') : (m.status === 'Approved')));
-        if (allVideosApproved && allPdfsApproved) {
+        const allAchievementsApproved = (localCourse?.achievements || []).every(m => (m.id === mediaId ? (newStatus === 'Approved') : (m.status === 'Approved')));
+        if (allVideosApproved && allPdfsApproved && allAchievementsApproved) {
           const courseRef = doc(db, "bharatam_courses", courseId);
           try {
             await updateDoc(courseRef, {
@@ -1884,7 +1918,11 @@ export default function SuperAdminDashboard({ user, onLogout }) {
           </thead>
           <tbody>
             {coursesToRender.map(course => {
-              const mediaRows = [...(course.videos || []).map(m => ({ ...m, mediaType: 'video' })), ...(course.pdfs || []).map(m => ({ ...m, mediaType: 'pdf' }))];
+              const mediaRows = [
+                ...(course.videos || []).map(m => ({ ...m, mediaType: 'video' })),
+                ...(course.pdfs || []).map(m => ({ ...m, mediaType: 'pdf' })),
+                ...(course.achievements || []).map(m => ({ ...m, mediaType: 'achievement' }))
+              ];
               const rowSpan = Math.max(1, mediaRows.length);
 
               if (mediaRows.length === 0) {
@@ -1939,9 +1977,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                           ) : (
                             <button onClick={() => openPreview(m.url, m.title)} className="px-3 py-1 bg-gray-50 text-gray-600 rounded text-xs font-bold">Open</button>
                           )}
-                          {m.status !== 'Approved' && m.url && m.url !== '' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType === 'video' ? 'video' : 'pdf', 'Approved')} className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-bold">Approve</button>}
-                          {m.status !== 'Rejected' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType === 'video' ? 'video' : 'pdf', 'Rejected')} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded text-xs font-bold">Reject</button>}
-                          <button onClick={() => handleRemoveMedia(course.id, m.id, m.mediaType === 'video' ? 'video' : 'pdf')} className="px-2 py-1 text-gray-400 hover:text-red-500">Remove</button>
+                          {m.status !== 'Approved' && m.url && m.url !== '' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType, 'Approved')} className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-bold">Approve</button>}
+                          {m.status !== 'Rejected' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType, 'Rejected')} className="px-3 py-1 bg-white border border-red-200 text-red-500 rounded text-xs font-bold">Reject</button>}
+                          <button onClick={() => handleRemoveMedia(course.id, m.id, m.mediaType)} className="px-2 py-1 text-gray-400 hover:text-red-500">Remove</button>
                         </div>
                       </td>
                     </tr>
@@ -1971,7 +2009,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
     );
     const getCourseMediaRows = (course) => [
       ...(course.videos || []).map(m => ({ ...m, mediaType: 'video' })),
-      ...(course.pdfs || []).map(m => ({ ...m, mediaType: 'pdf' }))
+      ...(course.pdfs || []).map(m => ({ ...m, mediaType: 'pdf' })),
+      ...(course.achievements || []).map(m => ({ ...m, mediaType: 'achievement' }))
     ];
 
     const categoryGroups = Object.entries(
@@ -2117,9 +2156,9 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                             ) : (
                               <button onClick={() => openPreview(m.url, m.title)} className="px-3 py-1.5 bg-gray-50 text-gray-600 rounded-lg text-xs font-bold">Open</button>
                             )}
-                            {m.status !== 'Approved' && m.url && m.url !== '' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType === 'video' ? 'video' : 'pdf', 'Approved')} className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold">Approve</button>}
-                            {m.status !== 'Rejected' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType === 'video' ? 'video' : 'pdf', 'Rejected')} className="px-3 py-1.5 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold">Reject</button>}
-                            <button onClick={() => handleRemoveMedia(course.id, m.id, m.mediaType === 'video' ? 'video' : 'pdf')} className="px-2 py-1 text-gray-400 hover:text-red-500">Remove</button>
+                            {m.status !== 'Approved' && m.url && m.url !== '' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType, 'Approved')} className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold">Approve</button>}
+                            {m.status !== 'Rejected' && <button onClick={() => handleMediaStatus(course.id, m.id, m.mediaType, 'Rejected')} className="px-3 py-1.5 bg-white border border-red-200 text-red-500 rounded-lg text-xs font-bold">Reject</button>}
+                            <button onClick={() => handleRemoveMedia(course.id, m.id, m.mediaType)} className="px-2 py-1 text-gray-400 hover:text-red-500">Remove</button>
                             {idx === 0 && (
                               <button onClick={() => handleApproveCourseAndAllMedia(course.id, true)} className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold">Approve All</button>
                             )}
@@ -2448,7 +2487,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
 
     const videos = (course.videos || []).map(item => ({ ...item, materialType: 'video' }));
     const pdfs = (course.pdfs || []).map(item => ({ ...item, materialType: 'pdf' }));
-    const allMaterials = [...videos, ...pdfs].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+    const achievements = (course.achievements || []).map(item => ({ ...item, materialType: 'achievement' }));
+    const allMaterials = [...videos, ...pdfs, ...achievements].sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
     const filteredMaterials = materialFilter === 'all'
       ? allMaterials
       : allMaterials.filter(item => item.materialType === materialFilter);
@@ -2482,7 +2522,7 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-600">{coursePrice}</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:min-w-[260px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:min-w-[360px]">
               <div className="rounded-xl bg-slate-50 p-3 text-center">
                 <p className="text-xl font-black text-slate-950">{allMaterials.length}</p>
                 <p className="text-[10px] font-bold uppercase text-slate-400">Total</p>
@@ -2495,6 +2535,10 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 <p className="text-xl font-black text-rose-700">{pdfs.length}</p>
                 <p className="text-[10px] font-bold uppercase text-rose-400">PDFs</p>
               </div>
+              <div className="rounded-xl bg-blue-50 p-3 text-center">
+                <p className="text-xl font-black text-blue-700">{achievements.length}</p>
+                <p className="text-[10px] font-bold uppercase text-blue-400">Achievements</p>
+              </div>
             </div>
           </div>
         </div>
@@ -2504,7 +2548,8 @@ export default function SuperAdminDashboard({ user, onLogout }) {
             {[
               { id: 'all', label: 'All Materials', count: allMaterials.length, icon: BookOpen },
               { id: 'video', label: 'Videos', count: videos.length, icon: Video },
-              { id: 'pdf', label: 'PDFs', count: pdfs.length, icon: FileText }
+              { id: 'pdf', label: 'PDFs', count: pdfs.length, icon: FileText },
+              { id: 'achievement', label: 'Achievements', count: achievements.length, icon: Award }
             ].map(filter => (
               <button
                 key={filter.id}
@@ -2545,15 +2590,18 @@ export default function SuperAdminDashboard({ user, onLogout }) {
                 <tbody className="divide-y divide-slate-100">
                   {filteredMaterials.map(material => {
                     const isPdf = material.materialType === 'pdf';
+                    const isAchievement = material.materialType === 'achievement';
                     const title = material.title || material.fileName || 'Untitled';
                     const previewUrl = material.url || material.storageUrl || material.bunnyVideoId || '';
                     return (
                       <tr key={`${material.materialType}-${material.id || title}`} className="hover:bg-slate-50/70 transition-colors">
                         <td className="px-3 lg:px-5 py-4 text-sm font-black text-slate-500">{Number(material.order || 0) || '-'}</td>
                         <td className="px-3 lg:px-4 py-4">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${isPdf ? 'bg-rose-50 text-rose-600' : 'bg-purple-50 text-purple-600'}`}>
-                            {isPdf ? <FileText className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />}
-                            {isPdf ? 'PDF' : 'Video'}
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
+                            isPdf ? 'bg-rose-50 text-rose-600' : (isAchievement ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600')
+                          }`}>
+                            {isPdf ? <FileText className="w-3.5 h-3.5" /> : (isAchievement ? <Award className="w-3.5 h-3.5" /> : <Video className="w-3.5 h-3.5" />)}
+                            {isPdf ? 'PDF' : (isAchievement ? 'Achievement' : 'Video')}
                           </span>
                         </td>
                         <td className="px-3 lg:px-4 py-4">
